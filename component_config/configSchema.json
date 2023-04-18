@@ -2,18 +2,9 @@
   "type": "object",
   "title": "QuickBooks",
   "required": [
-    "companyid",
     "endpoints"
   ],
   "properties": {
-    "companyid": {
-      "type": "string",
-      "title": "Company ID",
-      "default": "",
-      "minLength": 1,
-      "description": "Can be found under QuickBooks account's \"Account and Setting\".",
-      "propertyOrder": 1
-    },
     "endpoints": {
       "type": "array",
       "title": "Endpoints",
@@ -48,62 +39,12 @@
         "tags": true
       },
       "description": "Select which endpoints you want to process.",
-      "propertyOrder": 2
-    },
-    "reports": {
-      "type": "array",
-      "title": "Reports",
-      "format": "select",
-      "items": {
-        "type": "string",
-        "enum": [
-          "BalanceSheet**",
-          "CashFlow**",
-          "GeneralLedger**",
-          "ProfitAndLossDetail**",
-          "ProfitAndLossQuery**",
-          "TransactionList**",
-          "TrialBalance**"
-        ]
-      },
-      "uniqueItems": true,
-      "options": {
-        "tags": true
-      },
-      "description": "Select which reports you want to process.",
-      "propertyOrder": 3
-    },
-    "summarize_column_by": {
-      "title": "Summarize Column By (optional)",
-      "description": "Enables Grouping for ProfitAndLossQuery** endpoint. Does not affect other reports.",
-      "type": "string",
-      "propertyOrder": 4
-    },
-    "date_settings": {
-      "type": "object",
-      "title": "Date Settings",
-      "propertyOrder": 5,
-      "properties": {
-        "start_date": {
-          "title": "Start Date",
-          "type": "string",
-          "default": "",
-          "description": "Valid types are: PrevMonthStart, PrevMonthEnd or a date in YYYY-MM-DD format. Only affects reports.",
-          "propertyOrder": 1
-        },
-        "end_date": {
-          "title": "End date",
-          "type": "string",
-          "default": "",
-          "description": "Valid types are: PrevMonthStart, PrevMonthEnd or a date in YYYY-MM-DD format. Only affects reports.",
-          "propertyOrder": 3
-        }
-      }
+      "propertyOrder": 1
     },
     "destination": {
       "title": "Destination",
       "type": "object",
-      "propertyOrder": 6,
+      "propertyOrder": 2,
       "required": [
         "load_type"
       ],
@@ -124,7 +65,7 @@
           "format": "checkbox",
           "title": "Load Type",
           "description": "If Full load is used, the destination table will be overwritten every run. If incremental load is used, data will be upserted into the destination table. Tables with a primary key will have rows updated, tables without a primary key will have rows appended.",
-          "propertyOrder": 4
+          "propertyOrder": 1
         }
       }
     }
