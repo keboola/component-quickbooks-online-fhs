@@ -5,6 +5,14 @@
     "endpoints"
   ],
   "properties": {
+        "companyid": {
+      "type": "string",
+      "title": "Company ID",
+      "default": "",
+      "minLength": 1,
+      "description": "Can be found under QuickBooks account's \"Account and Setting\".",
+      "propertyOrder": 1
+    },
     "endpoints": {
       "type": "array",
       "title": "Endpoints",
@@ -39,12 +47,12 @@
         "tags": true
       },
       "description": "Select which endpoints you want to process.",
-      "propertyOrder": 1
+      "propertyOrder": 2
     },
     "destination": {
       "title": "Destination",
       "type": "object",
-      "propertyOrder": 2,
+      "propertyOrder": 3,
       "required": [
         "load_type"
       ],
