@@ -60,21 +60,15 @@ class QuickbooksClient:
         # Pagination Parameters
         self.startposition = 1
         self.maxresults = 1000
-        # Start_date will be used as the custom query input field
-        # if custom query is selected
         self.start_date = start_date
         self.end_date = end_date
 
-        # Return
-        # if report is returning accounting_type
         # data = Accrual Type
         # data2 = Cash Type
         self.data = []  # stores all the returns from request
         self.data_2 = []
 
-        logging.info("Accessing QuickBooks API...")
         if report_api_bool:
-            logging.info("Processing Report: {0}".format(endpoint))
             if self.endpoint == "CustomQuery":
                 if query == '':
                     raise QuickBooksClientException("Please enter query for CustomQuery. Exit...")
@@ -95,7 +89,8 @@ class QuickbooksClient:
 
     def refresh_access_token(self):
         """
-        Get a new access token with refresh token
+        Get a new access token with refresh token.
+        Also saves the new token in statefile.
         """
 
         # Basic authorization header for refresh token

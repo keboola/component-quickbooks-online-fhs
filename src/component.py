@@ -1,14 +1,15 @@
 import logging
+import csv
+import os
+from datetime import date
+from dateutil.relativedelta import relativedelta
 
 from mapping import Mapping
 from client import QuickbooksClient, QuickBooksClientException
 from report_mapping import ReportMapping
-from datetime import date
-from dateutil.relativedelta import relativedelta
 
 from keboola.component.base import ComponentBase
 from keboola.component.exceptions import UserException  # noqa
-from keboola.csvwriter import ElasticDictWriter
 
 # configuration variables
 KEY_COMPANY_ID = 'companyid'
@@ -30,129 +31,146 @@ BASE_URL = "https://quickbooks.api.intuit.com"
 
 
 class Component(ComponentBase):
-    """
-        Extends base class for general Python components. Initializes the CommonInterface
-        and performs configuration validation.
-
-        For easier debugging the data folder is picked up by default from `../data` path,
-        relative to working directory.
-
-        If `debug` parameter is present in the `config.json`, the default logger is set to verbose DEBUG mode.
-    """
 
     def __init__(self):
         super().__init__()
-        self.summarize_column_by = None
         self.incremental = None
-        self.end_date = None
-        self.start_date = None
 
     def run(self):
-        self.validate_configuration_parameters(REQUIRED_PARAMETERS)
-        params = self.configuration.parameters
 
-        # Input parameters
-        endpoints = params.get(KEY_ENDPOINTS)
-        reports = params.get(KEY_REPORTS)
-        company_id = params.get(KEY_COMPANY_ID, [])
-        endpoints.extend(reports)
+        sandbox = False
+        start_date = None
+        end_date = None
 
-        if params.get(GROUP_DATE_SETTINGS):
-            date_settings = params.get(GROUP_DATE_SETTINGS)
-            start_date = date_settings.get(KEY_START_DATE)
-            end_date = date_settings.get(KEY_END_DATE)
+        in_tables = self.get_input_tables_definitions()
+        if in_tables:
+            cfg_table = in_tables[0]
+            sandbox = False
         else:
-            start_date = self.start_date
-            end_date = self.end_date
+            cfg_table = False
 
-        self.start_date = self.process_date(start_date)
-        self.end_date = self.process_date(end_date)
+        if cfg_table:
+            _endpoints = ["Class", "Department", "Preferences"]
+            with open(cfg_table.full_path, 'r') as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    company_id = row["PK"]
+                    endpoints = _endpoints + [row["report"]]
+                    start_date = row["start_date"]
+                    end_date = row["end_date"]
+                    self.incremental = True
+                    summarize_column_by = row["segment_data_by"] or None
 
-        logging.info(f'Company ID: {company_id}')
+                    oauth = self.configuration.oauth_credentials
+                    refresh_token, access_token = self.get_oauth_data()
+                    self.write_state_file({"#refresh_token": refresh_token, "#access_token": access_token})
+
+                    quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=refresh_token,
+                                                        access_token=access_token, oauth=oauth, sandbox=sandbox)
+
+                    # Fetching reports for each configured endpoint
+                    for endpoint in endpoints:
+                        self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
+        else:
+
+            self.validate_configuration_parameters(REQUIRED_PARAMETERS)
+            params = self.configuration.parameters
+
+            # Input parameters
+            endpoints = params.get(KEY_ENDPOINTS)
+            reports = params.get(KEY_REPORTS)
+            company_id = params.get(KEY_COMPANY_ID, [])
+            endpoints.extend(reports)
+
+            if params.get(GROUP_DATE_SETTINGS):
+                date_settings = params.get(GROUP_DATE_SETTINGS)
+                start_date = date_settings.get(KEY_START_DATE)
+                end_date = date_settings.get(KEY_END_DATE)
+
+            start_date = self.process_date(start_date)
+            end_date = self.process_date(end_date)
+
+            logging.info(f'Company ID: {company_id}')
+
+            if params.get("sandbox"):
+                sandbox = True
+                logging.info("Sandbox environment enabled.")
+
+            destination_params = params.get(KEY_GROUP_DESTINATION)
+            if destination_params.get(KEY_LOAD_TYPE, False) == "incremental_load":
+                self.incremental = True
+            else:
+                self.incremental = False
+            logging.info(f"Load type incremental set to: {self.incremental}")
+
+            summarize_column_by = params.get(KEY_SUMMARIZE_COLUMN_BY) if params.get(
+                KEY_SUMMARIZE_COLUMN_BY) else None
 
         oauth = self.configuration.oauth_credentials
-        statefile = self.get_state_file()
-        if statefile.get("#refresh_token", {}):
-            refresh_token = statefile.get("#refresh_token")
-            access_token = statefile.get("#access_token")
-            logging.info("Loaded tokens from statefile.")
-        else:
-            refresh_token = oauth["data"]["refresh_token"]
-            access_token = oauth["data"]["access_token"]
-            logging.info("No oauth data found in statefile. Using data from Authorization.")
-        if params.get("sandbox"):
-            sandbox = True
-            logging.info("Sandbox environment enabled.")
-        else:
-            sandbox = False
-
-        destination_params = params.get(KEY_GROUP_DESTINATION)
-        if destination_params.get(KEY_LOAD_TYPE, False) == "incremental_load":
-            self.incremental = True
-        else:
-            self.incremental = False
-        logging.info(f"Load type incremental set to: {self.incremental}")
-
-        self.summarize_column_by = params.get(KEY_SUMMARIZE_COLUMN_BY) if params.get(
-            KEY_SUMMARIZE_COLUMN_BY) else self.summarize_column_by
-
-        self.write_state_file({
-            "#refresh_token": refresh_token,
-            "#access_token": access_token
-        })
+        refresh_token, access_token = self.get_oauth_data()
+        self.write_state_file({"#refresh_token": refresh_token, "#access_token": access_token})
 
         quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=refresh_token,
                                             access_token=access_token, oauth=oauth, sandbox=sandbox)
 
         # Fetching reports for each configured endpoint
         for endpoint in endpoints:
+            self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
 
-            if endpoint == "ProfitAndLossQuery**":
-                self.process_pnl_report(quickbooks_param=quickbooks_param)
-                continue
+    def process_endpoint(self, endpoint, quickbooks_param, start_date, end_date, summarize_column_by):
 
-            if "**" in endpoint:
-                endpoint = endpoint.split("**")[0]
-                report_api_bool = True
-            else:
-                endpoint = endpoint
-                report_api_bool = False
+        if endpoint == "ProfitAndLossQuery":
+            self.process_pnl_report(quickbooks_param=quickbooks_param, start_date=start_date, end_date=end_date,
+                                    summarize_column_by=summarize_column_by)
+            return
 
-            # Phase 1: Request
-            # Handling Quickbooks Requests
-            self.fetch(quickbooks_param=quickbooks_param, endpoint=endpoint, report_api_bool=report_api_bool)
+        if "**" in endpoint:
+            endpoint = endpoint.split("**")[0]
+            report_api_bool = True
+        else:
+            endpoint = endpoint
+            report_api_bool = False
 
-            # Phase 2: Mapping
-            # Translate Input JSON file into CSV with configured mapping
-            # For different accounting_type,
-            # input_data will be outputting Accrual Type
-            # input_data_2 will be outputting Cash Type
-            logging.info("Parsing API results...")
-            input_data = quickbooks_param.data
+        self.fetch(quickbooks_param=quickbooks_param, endpoint=endpoint, report_api_bool=report_api_bool)
 
-            # if there are no data
-            # output blank
-            if len(input_data) == 0:
-                pass
-            else:
-                logging.info(
-                    "Report API Template Enable: {0}".format(report_api_bool))
-                if report_api_bool:
-                    if endpoint == "CustomQuery":
-                        # Not implemented
-                        ReportMapping(endpoint=endpoint, data=input_data,
-                                      query=self.start_date)
-                    else:
-                        if endpoint in quickbooks_param.reports_required_accounting_type:
-                            input_data_2 = quickbooks_param.data_2
-                            ReportMapping(endpoint=endpoint, data=input_data, accounting_type="accrual")
-                            ReportMapping(endpoint=endpoint, data=input_data_2, accounting_type="cash")
-                        else:
-                            ReportMapping(endpoint=endpoint, data=input_data)
+        logging.info("Parsing API results...")
+        input_data = quickbooks_param.data
+
+        if len(input_data) == 0:
+            pass
+        else:
+            logging.info(
+                "Report API Template Enable: {0}".format(report_api_bool))
+            if report_api_bool:
+                if endpoint == "CustomQuery":
+                    # Not implemented
+                    ReportMapping(endpoint=endpoint, data=input_data,
+                                  query=start_date)
                 else:
-                    Mapping(endpoint=endpoint, data=input_data)
+                    if endpoint in quickbooks_param.reports_required_accounting_type:
+                        input_data_2 = quickbooks_param.data_2
+                        ReportMapping(endpoint=endpoint, data=input_data, accounting_type="accrual")
+                        ReportMapping(endpoint=endpoint, data=input_data_2, accounting_type="cash")
+                    else:
+                        ReportMapping(endpoint=endpoint, data=input_data)
+            else:
+                Mapping(endpoint=endpoint, data=input_data)
 
-    def process_pnl_report(self, quickbooks_param):
+    def get_oauth_data(self):
+        statefile = self.get_state_file()
+        if statefile.get("#refresh_token", {}):
+            refresh_token = statefile.get("#refresh_token")
+            access_token = statefile.get("#access_token")
+            logging.info("Loaded tokens from statefile.")
+        else:
+            oauth = self.configuration.oauth_credentials
+            refresh_token = oauth["data"]["refresh_token"]
+            access_token = oauth["data"]["access_token"]
+            logging.info("No oauth data found in statefile. Using data from Authorization.")
+
+        return refresh_token, access_token
+
+    def process_pnl_report(self, quickbooks_param, start_date, end_date, summarize_column_by):
         results_cash = []
         results_accrual = []
 
@@ -163,8 +181,8 @@ class Component(ComponentBase):
                 "value": value,
                 "obj_type": obj_type,
                 "obj_group": obj_group,
-                "start_date": self.start_date,
-                "end_date": self.end_date
+                "start_date": start_date,
+                "end_date": end_date
             }
             if method == "cash":
                 results_cash.append(res_dict)
@@ -201,7 +219,11 @@ class Component(ComponentBase):
                 for inner_object in inner_objects:
                     process_object(inner_object, class_name, method)
 
-        self.fetch(quickbooks_param=quickbooks_param, endpoint="CustomQuery", report_api_bool=True,
+        self.fetch(quickbooks_param=quickbooks_param,
+                   endpoint="CustomQuery",
+                   report_api_bool=True,
+                   start_date=start_date,
+                   end_date=end_date,
                    query="select * from Class")
 
         query_result = quickbooks_param.data
@@ -209,18 +231,24 @@ class Component(ComponentBase):
         logging.info(f"Found Classes: {classes}")
 
         if not len(classes) == query_result['totalCount']:
+            # in cases where there would be too many classes for one page
             raise NotImplementedError("Classes paging is not implemented.")
 
         params = {}
         summarize = False
-        if self.summarize_column_by:
+        if summarize_column_by:
             summarize = True
-            params["summarize_column_by"] = self.summarize_column_by
+            params["summarize_column_by"] = summarize_column_by
 
         for class_name in classes:
             logging.info(f"Processing class: {class_name}")
 
-            self.fetch(quickbooks_param=quickbooks_param, endpoint="ProfitAndLoss", report_api_bool=True, query="",
+            self.fetch(quickbooks_param=quickbooks_param,
+                       endpoint="ProfitAndLoss",
+                       report_api_bool=True,
+                       start_date=start_date,
+                       end_date=end_date,
+                       query="",
                        params=params)
 
             summarize_by = quickbooks_param.data['Header'].get("SummarizeColumnsBy", False)
@@ -237,34 +265,39 @@ class Component(ComponentBase):
 
             else:
 
-                report_cash_data = quickbooks_param.data_2
                 report_accrual_data = quickbooks_param.data
+                report_cash_data = quickbooks_param.data_2
 
                 header = quickbooks_param.data['Header']
                 summarize_by = header['SummarizeColumnsBy']
                 currency = header['Currency']
 
-                results_cash = self.preprocess_dict(report_cash_data,
-                                                    class_name,
-                                                    summarize_by=summarize_by,
-                                                    currency=currency)
+                results_cash.append(self.preprocess_dict(report_cash_data,
+                                                         class_name,
+                                                         summarize_by=summarize_by,
+                                                         currency=currency,
+                                                         start_date=start_date,
+                                                         end_date=end_date))
 
-                results_accrual = self.preprocess_dict(report_accrual_data,
-                                                       class_name,
-                                                       summarize_by=summarize_by,
-                                                       currency=currency)
+                results_accrual.append(self.preprocess_dict(report_accrual_data,
+                                                            class_name,
+                                                            summarize_by=summarize_by,
+                                                            currency=currency,
+                                                            start_date=start_date,
+                                                            end_date=end_date))
 
         if summarize:
-            suffix = "_"+str(summarize_by)
+            suffix = "_" + str(summarize_by)
         else:
             suffix = ""
 
         self.save_pnl_report_to_csv(table_name=f"ProfitAndLossQuery_cash{suffix}.csv", results=results_cash,
-                                    summarize=summarize)
+                                    summarize=summarize_by)
         self.save_pnl_report_to_csv(table_name=f"ProfitAndLossQuery_accrual{suffix}.csv", results=results_accrual,
-                                    summarize=summarize)
+                                    summarize=summarize_by)
 
-    def preprocess_dict(self, obj, class_name, summarize_by, currency):
+    @staticmethod
+    def preprocess_dict(obj, class_name, summarize_by, currency, start_date, end_date):
         results = []
 
         rows = obj['Rows']['Row']
@@ -282,8 +315,8 @@ class Component(ComponentBase):
                 "obj_group": obj_group,
                 "category_name": category_name,
                 "category_id": category_id,
-                "start_date": self.start_date,
-                "end_date": self.end_date,
+                "start_date": start_date,
+                "end_date": end_date,
                 "summarize_by": summarize_by,
                 "currency": currency
             }
@@ -306,12 +339,12 @@ class Component(ComponentBase):
 
             if "Header" in obj:
                 header_name = obj["Header"]["ColData"][0]["value"]
-                header_value = obj["Header"]["ColData"][1]["value"]
+                header_value = obj["Header"]["ColData"][1]["value"] if len(obj["Header"]["ColData"]) > 1 else ""
                 save_result(class_name, header_name, header_value, obj_type, obj_group)
 
             if "Summary" in obj:
                 summary_name = obj["Summary"]["ColData"][0]["value"]
-                summary_value = obj["Summary"]["ColData"][1]["value"]
+                summary_value = obj["Summary"]["ColData"][1]["value"] if len(obj["Summary"]["ColData"]) > 1 else ""
                 save_result(class_name, summary_name, summary_value, obj_type, obj_group)
 
             if "Rows" in obj:
@@ -326,6 +359,8 @@ class Component(ComponentBase):
 
     def save_pnl_report_to_csv(self, table_name: str, results: list, summarize: bool):
 
+        logging.info(f"Saving pnl_report results to {table_name}.")
+
         if not summarize:
             pk = ["class", "name", "obj_type", "start_date", "end_date"]
             columns = ["class", "name", "value", "obj_type", "obj_group", "start_date", "end_date"]
@@ -336,20 +371,26 @@ class Component(ComponentBase):
 
         table_def = self.create_out_table_definition(table_name, primary_key=pk, incremental=self.incremental)
 
-        with ElasticDictWriter(table_def.full_path, columns) as wr:
-            wr.writeheader()
-            wr.writerows(results)
+        file_exists = os.path.isfile(table_def.full_path)
+
+        with open(table_def.full_path, 'a', newline='') as csvfile:
+            wr = csv.DictWriter(csvfile, fieldnames=columns)
+            if not file_exists:
+                wr.writeheader()
+            for result in results:
+                wr.writerows(result)
 
         self.write_manifest(table_def)
 
-    def fetch(self, quickbooks_param, endpoint, report_api_bool, query="", params=None):
-        logging.info(f"Fetching endpoint {endpoint} with date rage: {self.start_date} - {self.end_date}")
+    @staticmethod
+    def fetch(quickbooks_param, endpoint, report_api_bool, start_date=None, end_date=None, query="", params=None):
+        logging.info(f"Fetching endpoint {endpoint} with date rage: {start_date} - {end_date}")
         try:
             quickbooks_param.fetch(
                 endpoint=endpoint,
                 report_api_bool=report_api_bool,
-                start_date=self.start_date,
-                end_date=self.end_date,
+                start_date=start_date,
+                end_date=end_date,
                 query=query if query else "",
                 params=params
             )
