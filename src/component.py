@@ -50,7 +50,7 @@ class Component(ComponentBase):
             cfg_table = False
 
         if cfg_table:
-            _endpoints = ["Class", "Department", "Preferences"]
+            _endpoints = self.configuration.parameters.get("endpoints", [])
             with open(cfg_table.full_path, 'r') as csvfile:
                 reader = csv.DictReader(csvfile)
                 for row in reader:
