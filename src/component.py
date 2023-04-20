@@ -124,7 +124,8 @@ class Component(ComponentBase):
                     self.process_endpoint(endpoint, quickbooks_param, start_date=None, end_date=None,
                                           summarize_column_by=None)
             else:
-                for row in reader:
+                for row in rows:
+                    logging.info(f"Processing row: {row}")
                     company_id = row["PK"]
                     endpoints = _endpoints + [row["report"]]
                     start_date = row["start_date"]
