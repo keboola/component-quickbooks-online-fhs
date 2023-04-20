@@ -45,6 +45,7 @@ class Component(ComponentBase):
         end_date = None
 
         oauth = self.configuration.oauth_credentials
+        params_company_id = self.configuration.parameters.get("company_id", None)
         self.refresh_token, self.access_token = self.get_tokens()
 
         in_tables = self.get_input_tables_definitions()
@@ -55,7 +56,12 @@ class Component(ComponentBase):
             cfg_table = False
 
         if cfg_table:
-            self.input_table_run(cfg_table, oauth, sandbox)
+            try:
+                self.input_table_run(cfg_table, oauth, sandbox, params_company_id)
+            except QuickBooksClientException as e:
+                raise UserException(f"Component failed during run: {e}. "
+                                    f"refresh_token: {self.refresh_token},"
+                                    f" access_token: {self.access_token}")
         else:
             self.no_input_table_run(start_date, end_date, self.refresh_token, self.access_token, oauth, sandbox)
 
@@ -105,26 +111,39 @@ class Component(ComponentBase):
 
         self.refresh_token, self.access_token = quickbooks_param.refresh_token, quickbooks_param.access_token
 
-    def input_table_run(self, cfg_table, oauth, sandbox):
+    def input_table_run(self, cfg_table, oauth, sandbox, params_company_id: str):
         _endpoints = self.configuration.parameters.get("endpoints", [])
         with open(cfg_table.full_path, 'r') as csvfile:
             reader = csv.DictReader(csvfile)
-            for row in reader:
-                company_id = row["PK"]
-                endpoints = _endpoints + [row["report"]]
-                start_date = row["start_date"]
-                end_date = row["end_date"]
-                self.incremental = True
-                summarize_column_by = row["segment_data_by"] or None
-
-                quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=self.refresh_token,
+            rows = list(reader)  # not memory efficient, but we are working with small input table
+            if len(rows) == 0:
+                logging.info("Not rows in input table detected, the component will process selected endpoints only.")
+                quickbooks_param = QuickbooksClient(company_id=params_company_id, refresh_token=self.refresh_token,
                                                     access_token=self.access_token, oauth=oauth, sandbox=sandbox)
+                for endpoint in _endpoints:
+                    self.process_endpoint(endpoint, quickbooks_param, start_date=None, end_date=None,
+                                          summarize_column_by=None)
+            else:
+                for row in reader:
+                    company_id = row["PK"]
+                    endpoints = _endpoints + [row["report"]]
+                    start_date = row["start_date"]
+                    end_date = row["end_date"]
+                    self.incremental = True
+                    summarize_column_by = row["segment_data_by"] or None
 
-                # Fetching reports for each configured endpoint
-                for endpoint in endpoints:
-                    self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
+                    if company_id != params_company_id:
+                        raise UserException(f"company_id from params: {params_company_id} does not match "
+                                            f"with company_id provided in input table: {company_id}.")
 
-                self.refresh_token, self.access_token = quickbooks_param.refresh_token, quickbooks_param.access_token
+                    quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=self.refresh_token,
+                                                        access_token=self.access_token, oauth=oauth, sandbox=sandbox)
+
+                    # Fetching reports for each configured endpoint
+                    for endpoint in endpoints:
+                        self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
+
+            self.refresh_token, self.access_token = quickbooks_param.refresh_token, quickbooks_param.access_token
 
     def process_endpoint(self, endpoint, quickbooks_param, start_date, end_date, summarize_column_by):
 
