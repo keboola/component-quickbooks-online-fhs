@@ -45,7 +45,7 @@ class Component(ComponentBase):
         end_date = None
 
         oauth = self.configuration.oauth_credentials
-        params_company_id = self.configuration.parameters.get("company_id", None)
+        params_company_id = self.configuration.parameters.get(KEY_COMPANY_ID, None)
         self.refresh_token, self.access_token = self.get_tokens()
 
         in_tables = self.get_input_tables_definitions()
@@ -75,7 +75,7 @@ class Component(ComponentBase):
         # Input parameters
         endpoints = params.get(KEY_ENDPOINTS)
         reports = params.get(KEY_REPORTS)
-        company_id = params.get(KEY_COMPANY_ID, [])
+        company_id = params.get(KEY_COMPANY_ID)
         endpoints.extend(reports)
 
         if params.get(GROUP_DATE_SETTINGS):
