@@ -4,7 +4,6 @@ import requests
 import dateparser
 import urllib.parse as url_parse
 from requests.auth import HTTPBasicAuth
-import os
 
 from keboola.component.base import ComponentBase  # noqa
 
