@@ -143,7 +143,7 @@ class Component(ComponentBase):
                     for endpoint in endpoints:
                         self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
 
-            self.refresh_token, self.access_token = quickbooks_param.refresh_token, quickbooks_param.access_token
+        self.refresh_token, self.access_token = quickbooks_param.refresh_token, quickbooks_param.access_token
 
     def process_endpoint(self, endpoint, quickbooks_param, start_date, end_date, summarize_column_by):
 
