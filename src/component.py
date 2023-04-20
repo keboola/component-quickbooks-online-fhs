@@ -35,12 +35,17 @@ class Component(ComponentBase):
     def __init__(self):
         super().__init__()
         self.incremental = None
+        self.refresh_token = None
+        self.access_token = None
 
     def run(self):
 
         sandbox = False
         start_date = None
         end_date = None
+
+        oauth = self.configuration.oauth_credentials
+        self.refresh_token, self.access_token = self.get_tokens()
 
         in_tables = self.get_input_tables_definitions()
         if in_tables:
@@ -50,65 +55,46 @@ class Component(ComponentBase):
             cfg_table = False
 
         if cfg_table:
-            _endpoints = self.configuration.parameters.get("endpoints", [])
-            with open(cfg_table.full_path, 'r') as csvfile:
-                reader = csv.DictReader(csvfile)
-                for row in reader:
-                    company_id = row["PK"]
-                    endpoints = _endpoints + [row["report"]]
-                    start_date = row["start_date"]
-                    end_date = row["end_date"]
-                    self.incremental = True
-                    summarize_column_by = row["segment_data_by"] or None
-
-                    oauth = self.configuration.oauth_credentials
-                    refresh_token, access_token = self.get_oauth_data()
-                    self.write_state_file({"#refresh_token": refresh_token, "#access_token": access_token})
-
-                    quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=refresh_token,
-                                                        access_token=access_token, oauth=oauth, sandbox=sandbox)
-
-                    # Fetching reports for each configured endpoint
-                    for endpoint in endpoints:
-                        self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
+            self.input_table_run(cfg_table, oauth, sandbox)
         else:
+            self.no_input_table_run(start_date, end_date, self.refresh_token, self.access_token, oauth, sandbox)
 
-            self.validate_configuration_parameters(REQUIRED_PARAMETERS)
-            params = self.configuration.parameters
+        self.write_state_file({"#refresh_token": self.refresh_token,
+                               "#access_token": self.access_token})
 
-            # Input parameters
-            endpoints = params.get(KEY_ENDPOINTS)
-            reports = params.get(KEY_REPORTS)
-            company_id = params.get(KEY_COMPANY_ID, [])
-            endpoints.extend(reports)
+    def no_input_table_run(self, start_date, end_date, refresh_token, access_token, oauth, sandbox):
+        self.validate_configuration_parameters(REQUIRED_PARAMETERS)
+        params = self.configuration.parameters
 
-            if params.get(GROUP_DATE_SETTINGS):
-                date_settings = params.get(GROUP_DATE_SETTINGS)
-                start_date = date_settings.get(KEY_START_DATE)
-                end_date = date_settings.get(KEY_END_DATE)
+        # Input parameters
+        endpoints = params.get(KEY_ENDPOINTS)
+        reports = params.get(KEY_REPORTS)
+        company_id = params.get(KEY_COMPANY_ID, [])
+        endpoints.extend(reports)
 
-            start_date = self.process_date(start_date)
-            end_date = self.process_date(end_date)
+        if params.get(GROUP_DATE_SETTINGS):
+            date_settings = params.get(GROUP_DATE_SETTINGS)
+            start_date = date_settings.get(KEY_START_DATE)
+            end_date = date_settings.get(KEY_END_DATE)
 
-            logging.info(f'Company ID: {company_id}')
+        start_date = self.process_date(start_date)
+        end_date = self.process_date(end_date)
 
-            if params.get("sandbox"):
-                sandbox = True
-                logging.info("Sandbox environment enabled.")
+        logging.info(f'Company ID: {company_id}')
 
-            destination_params = params.get(KEY_GROUP_DESTINATION)
-            if destination_params.get(KEY_LOAD_TYPE, False) == "incremental_load":
-                self.incremental = True
-            else:
-                self.incremental = False
-            logging.info(f"Load type incremental set to: {self.incremental}")
+        if params.get("sandbox"):
+            sandbox = True
+            logging.info("Sandbox environment enabled.")
 
-            summarize_column_by = params.get(KEY_SUMMARIZE_COLUMN_BY) if params.get(
-                KEY_SUMMARIZE_COLUMN_BY) else None
+        destination_params = params.get(KEY_GROUP_DESTINATION)
+        if destination_params.get(KEY_LOAD_TYPE, False) == "incremental_load":
+            self.incremental = True
+        else:
+            self.incremental = False
+        logging.info(f"Load type incremental set to: {self.incremental}")
 
-        oauth = self.configuration.oauth_credentials
-        refresh_token, access_token = self.get_oauth_data()
-        self.write_state_file({"#refresh_token": refresh_token, "#access_token": access_token})
+        summarize_column_by = params.get(KEY_SUMMARIZE_COLUMN_BY) if params.get(
+            KEY_SUMMARIZE_COLUMN_BY) else None
 
         quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=refresh_token,
                                             access_token=access_token, oauth=oauth, sandbox=sandbox)
@@ -116,6 +102,29 @@ class Component(ComponentBase):
         # Fetching reports for each configured endpoint
         for endpoint in endpoints:
             self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
+
+        self.refresh_token, self.access_token = quickbooks_param.refresh_token, quickbooks_param.access_token
+
+    def input_table_run(self, cfg_table, oauth, sandbox):
+        _endpoints = self.configuration.parameters.get("endpoints", [])
+        with open(cfg_table.full_path, 'r') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                company_id = row["PK"]
+                endpoints = _endpoints + [row["report"]]
+                start_date = row["start_date"]
+                end_date = row["end_date"]
+                self.incremental = True
+                summarize_column_by = row["segment_data_by"] or None
+
+                quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=self.refresh_token,
+                                                    access_token=self.access_token, oauth=oauth, sandbox=sandbox)
+
+                # Fetching reports for each configured endpoint
+                for endpoint in endpoints:
+                    self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
+
+                self.refresh_token, self.access_token = quickbooks_param.refresh_token, quickbooks_param.access_token
 
     def process_endpoint(self, endpoint, quickbooks_param, start_date, end_date, summarize_column_by):
 
@@ -156,7 +165,7 @@ class Component(ComponentBase):
             else:
                 Mapping(endpoint=endpoint, data=input_data)
 
-    def get_oauth_data(self):
+    def get_tokens(self):
         statefile = self.get_state_file()
         if statefile.get("#refresh_token", {}):
             refresh_token = statefile.get("#refresh_token")

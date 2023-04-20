@@ -9,9 +9,6 @@ import os
 from keboola.component.base import ComponentBase  # noqa
 
 
-statefile_in_path = os.path.join(os.path.dirname(os.getcwd()), "data/in/state.json")
-statefile_out_path = os.path.join(os.path.dirname(os.getcwd()), "data/out/state.json")
-
 requesting = requests.Session()
 
 
@@ -25,6 +22,13 @@ class QuickbooksClient:
     """
 
     def __init__(self, company_id, access_token, refresh_token, oauth, sandbox):
+        self.count = None
+        self.end_date = None
+        self.start_date = None
+        self.maxresults = None
+        self.startposition = None
+        self.report_api_bool = None
+        self.endpoint = None
         self.data_2 = None
         self.data = None
         self.app_key = oauth.appKey
@@ -39,7 +43,6 @@ class QuickbooksClient:
         self.access_token = access_token
         self.refresh_token = refresh_token
         self.access_token_refreshed = False
-        self.new_refresh_token = False
         self.company_id = company_id
         self.reports_required_accounting_type = [
             "ProfitAndLoss",
@@ -93,46 +96,22 @@ class QuickbooksClient:
         Also saves the new token in statefile.
         """
 
-        # Basic authorization header for refresh token
         url = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
+        param = {
+            "grant_type": "refresh_token",
+            "refresh_token": self.refresh_token
+        }
 
-        results = None
-        request_success = False
-        while not request_success:
-            # Request Parameters
-            param = {
-                "grant_type": "refresh_token",
-                "refresh_token": self.refresh_token
-            }
+        r = requests.post(url, auth=HTTPBasicAuth(self.app_key, self.app_secret), data=param)
+        results = r.json()
 
-            r = requests.post(url, auth=HTTPBasicAuth(
-                self.app_key, self.app_secret), data=param)
-            results = r.json()
-
-            # If access token was not fetched
-            if "error" in results:
-                if not self.new_refresh_token:
-                    if os.path.isfile(statefile_in_path):
-                        with open(statefile_in_path, 'r') as f:
-                            statefile = json.load(f)
-                        if "refresh_token" in statefile:
-                            logging.info("Loading Refresh Token from State file.")
-                            self.refresh_token = statefile["refresh_token"]
-                            logging.info("State refresh token: {0}XXXX{1}".format(
-                                self.refresh_token[0:4], self.refresh_token[-4:]))
-                    self.new_refresh_token = True
-
-                else:
-                    raise QuickBooksClientException("Failed to refresh access token, please re-authorize credentials.")
-            else:
-                request_success = True
+        if "error" in results:
+            raise QuickBooksClientException(f"Failed to refresh access token, please re-authorize credentials:"
+                                            f" {results}")
 
         self.access_token = results["access_token"]
         self.refresh_token = results["refresh_token"]
-        logging.info("Access Token Granted.")
-        self.write_tokens_to_manifest()
-
-        # Monitor if app has requested refresh token yet
+        logging.info("Client got new tokens from the API.")
         self.access_token_refreshed = True
 
     def get_count(self):
@@ -228,14 +207,14 @@ class QuickbooksClient:
 
             # If API returns error, raise exception and terminate application
             if "fault" in results or "Fault" in results:
-                raise Exception(results)
+                raise QuickBooksClientException(results)
 
             data = results["QueryResponse"][self.endpoint]
 
             # Concatenate with exist extracted data
             self.data = self.data + data
 
-            # Handling pagination paramters
+            # Handling pagination parameters
             self.startposition += self.maxresults
             num_of_run += 1
 
@@ -320,14 +299,3 @@ class QuickbooksClient:
 
             results = self._request(url)
             self.data = results
-
-    def write_tokens_to_manifest(self):
-        """
-        Saves both refresh_token and access token to statefile.
-        Refer to https://developer.intuit.com/app/developer/qbo/docs/develop/authentication-and-authorization/faq
-        to find out why.
-        """
-        temp = {"#refresh_token": self.refresh_token, "#access_token": self.access_token}
-        logging.info("Saving tokens to statefile.")
-        with open(statefile_out_path, "w") as f:
-            json.dump(temp, f)
