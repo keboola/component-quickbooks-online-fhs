@@ -208,23 +208,19 @@ class Mapping:
         Dummy function to return header per file type.
         """
 
-        file = "/data/out/tables/"+str(file_name)+".manifest"
+        file = DEFAULT_FILE_DESTINATION+str(file_name)+".csv.manifest"
         logging.info("Manifest output: {0}".format(file))
 
         manifest_template = {
-            # "source": "myfile.csv"
-            # ,"destination": "in.c-mybucket.table"
-            # "incremental": bool(incremental)
-            # ,"primary_key": ["VisitID","Value","MenuItem","Section"]
-            # ,"columns": [""]
-            # ,"delimiter": "|"
-            # ,"enclosure": ""
+            "incremental": False,
+            "delimiter": ",",
+            "enclosure": "\""
         }
 
         column_header = []  # noqa
 
         manifest = manifest_template
-        # manifest["primary_key"] = primary_key
+        manifest["primary_key"] = primary_key
 
         try:
             with open(file, 'w') as file_out:
@@ -252,5 +248,6 @@ class Mapping:
             out_df.to_csv(file_dest, index=False)
             logging.info("Table output: {0}...".format(file_dest))
 
-        # Outputting manifest file if incremental
-        out_file_pk = self.out_file_pk  # noqa
+            # Outputting manifest file if incremental
+            out_file_pk = self.out_file_pk  # noqa
+            self.produce_manifest(file, self.out_file_pk[file])
