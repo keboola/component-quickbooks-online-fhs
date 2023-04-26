@@ -167,7 +167,9 @@ class QuickbooksClient:
                     logging.info("Refreshing Access Token")
                     self.refresh_access_token()
                 else:
-                    logging.error('Response Headers: {}'.format(data.headers))
+                    error = data.json().get("fault").get("error")[0]
+                    if error:
+                        raise QuickBooksClientException(error)
                     raise QuickBooksClientException(data.text)
             else:
                 request_success = True
