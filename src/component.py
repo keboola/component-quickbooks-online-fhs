@@ -261,9 +261,15 @@ class Component(ComponentBase):
         classes = [item["Name"] for item in query_result.get("Class", []) if item.get("Name")]
         logging.info(f"Found Classes: {classes}")
 
+        if not classes:
+            logging.warning("API returned no Classes, the component will return total.")
+            classes = ["Total"]
+
+        """
         if not len(classes) == query_result['totalCount']:
             # in cases where there would be too many classes for one page
-            raise NotImplementedError("Classes paging is not implemented.")
+            raise UserException("Classes paging is not implemented, please contact support.")
+        """
 
         params = {}
         summarize = False
