@@ -59,11 +59,12 @@ class Component(ComponentBase):
             try:
                 self.input_table_run(cfg_table, oauth, sandbox, params_company_id)
             except QuickBooksClientException as e:
-                raise UserException(f"Component failed during run: {e}. "
-                                    f"refresh_token: {self.refresh_token},"
-                                    f" access_token: {self.access_token}")
+                raise UserException(f"Component failed during run: {e}") from e
         else:
-            self.no_input_table_run(start_date, end_date, self.refresh_token, self.access_token, oauth, sandbox)
+            try:
+                self.no_input_table_run(start_date, end_date, self.refresh_token, self.access_token, oauth, sandbox)
+            except QuickBooksClientException as e:
+                raise UserException(f"Component failed during run: {e}") from e
 
         self.write_state_file({"#refresh_token": self.refresh_token,
                                "#access_token": self.access_token})
