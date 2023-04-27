@@ -24,7 +24,7 @@ KEY_SUMMARIZE_COLUMN_BY = 'summarize_column_by'
 
 # list of mandatory parameters => if some is missing,
 # component will fail with readable message on initialization.
-REQUIRED_PARAMETERS = [KEY_COMPANY_ID, KEY_ENDPOINTS, KEY_REPORTS, KEY_GROUP_DESTINATION]
+REQUIRED_PARAMETERS = [KEY_COMPANY_ID, KEY_ENDPOINTS, KEY_GROUP_DESTINATION]
 
 # QuickBooks Parameters
 BASE_URL = "https://quickbooks.api.intuit.com"
@@ -69,24 +69,25 @@ class Component(ComponentBase):
                                "#access_token": self.access_token})
 
     def no_input_table_run(self, start_date, end_date, refresh_token, access_token, oauth, sandbox):
+        logging.info("No input table detected. The component will run with parameters set in config.")
         self.validate_configuration_parameters(REQUIRED_PARAMETERS)
         params = self.configuration.parameters
 
         # Input parameters
         endpoints = params.get(KEY_ENDPOINTS)
-        reports = params.get(KEY_REPORTS)
+        reports = params.get(KEY_REPORTS, [])
         company_id = params.get(KEY_COMPANY_ID)
         endpoints.extend(reports)
 
         if params.get(GROUP_DATE_SETTINGS):
             date_settings = params.get(GROUP_DATE_SETTINGS)
-            start_date = date_settings.get(KEY_START_DATE)
-            end_date = date_settings.get(KEY_END_DATE)
+            start_date = date_settings.get(KEY_START_DATE, None)
+            end_date = date_settings.get(KEY_END_DATE, None)
 
         start_date = self.process_date(start_date)
         end_date = self.process_date(end_date)
 
-        logging.info(f'Company ID: {company_id}')
+        logging.info(f'Processing Company ID: {company_id}')
 
         if params.get("sandbox"):
             sandbox = True
