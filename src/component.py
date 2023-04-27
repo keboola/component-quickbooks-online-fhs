@@ -265,12 +265,6 @@ class Component(ComponentBase):
             logging.warning("API returned no Classes, the component will return total.")
             classes = ["Total"]
 
-        """
-        if not len(classes) == query_result['totalCount']:
-            # in cases where there would be too many classes for one page
-            raise UserException("Classes paging is not implemented, please contact support.")
-        """
-
         params = {}
         summarize = False
         if summarize_column_by:
