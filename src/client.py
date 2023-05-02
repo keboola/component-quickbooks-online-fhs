@@ -169,7 +169,11 @@ class QuickbooksClient:
                 else:
                     error = data.json().get("fault").get("error")[0]
                     if error:
-                        raise QuickBooksClientException(error)
+                        if error.get("message"):
+                            raise QuickBooksClientException(f"Authorization failed. Please check Company ID and/or "
+                                                            f"reauthorize the application: {error.get('message')}")
+                        else:
+                            raise QuickBooksClientException(error)
                     raise QuickBooksClientException(data.text)
             else:
                 request_success = True
