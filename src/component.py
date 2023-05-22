@@ -426,7 +426,7 @@ class Component(ComponentBase):
                 params=params
             )
         except QuickBooksClientException as e:
-            raise UserException(e)
+            raise UserException(e) from e
 
     @staticmethod
     def process_date(dt):
