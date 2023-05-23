@@ -10,7 +10,7 @@
       "title": "Company ID",
       "default": "",
       "minLength": 1,
-      "description": "Can be found under QuickBooks account's \"Account and Setting\".",
+      "description": "Can be found under QuickBooks account's \"Account and Setting\". Does not contain any spaces.",
       "propertyOrder": 1
     },
     "endpoints": {
