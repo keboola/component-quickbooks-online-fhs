@@ -56,6 +56,7 @@ class Component(ComponentBase):
             cfg_table = False
 
         if cfg_table:
+            self.validate_inputs(cfg_table, params_company_id)
             try:
                 self.input_table_run(cfg_table, oauth, sandbox, params_company_id)
             except QuickBooksClientException as e:
@@ -68,6 +69,22 @@ class Component(ComponentBase):
 
         self.write_state_file({"#refresh_token": self.refresh_token,
                                "#access_token": self.access_token})
+
+    @staticmethod
+    def validate_company_id(company_id: str) -> None:
+        if ' ' in company_id or '.' in company_id:
+            raise UserException("The company_id parameter should not contain any spaces or dots.")
+
+    def validate_inputs(self, cfg_table, params_company_id: str) -> None:
+        self.validate_company_id(params_company_id)
+        with open(cfg_table.full_path, 'r') as csvfile:
+            reader = csv.DictReader(csvfile)
+            rows = list(reader)
+            for row in rows:
+                pk = row["PK"]
+                if pk != params_company_id:
+                    raise UserException(f"company_id from params: {params_company_id} does not match "
+                                        f"with company_id provided in input table: {pk}.")
 
     def no_input_table_run(self, start_date, end_date, refresh_token, access_token, oauth, sandbox):
         logging.info("No input table detected. The component will run with parameters set in config.")
@@ -134,10 +151,6 @@ class Component(ComponentBase):
                     end_date = row["end_date"]
                     self.incremental = True
                     summarize_column_by = row["segment_data_by"] or None
-
-                    if company_id != params_company_id:
-                        raise UserException(f"company_id from params: {params_company_id} does not match "
-                                            f"with company_id provided in input table: {company_id}.")
 
                     quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=self.refresh_token,
                                                         access_token=self.access_token, oauth=oauth, sandbox=sandbox)
