@@ -94,6 +94,7 @@ class QuickbooksClient:
         Get a new access token with refresh token.
         Also saves the new token in statefile.
         """
+        logging.info("Refreshing Access Token")
 
         url = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
         param = {
@@ -106,7 +107,7 @@ class QuickbooksClient:
 
         if "error" in results:
             raise QuickBooksClientException(f"Failed to refresh access token, please re-authorize credentials:"
-                                            f" {results}")
+                                            f" {r.text}")
 
         self.access_token = results["access_token"]
         self.refresh_token = results["refresh_token"]
@@ -164,7 +165,6 @@ class QuickbooksClient:
 
             if "fault" in results or "Fault" in results:
                 if not self.access_token_refreshed:
-                    logging.info("Refreshing Access Token")
                     self.refresh_access_token()
                 else:
                     error = data.json().get("fault").get("error")[0]
