@@ -48,6 +48,20 @@ If, for any reason (such as entering a wrong company ID or manually terminating 
 
 This means that if the user encounters the error message "Failed to refresh access token, please re-authorize credentials: {"error":"invalid_grant"}", the only way to restore the configuration's functionality is to repeat the oAuth process.
 
+1. The user completes the oAuth process.
+
+2. During the first run of the component, the tokens obtained from oAuth are used for authentication.
+
+    - If the component's first run occurs within 24 hours of the oAuth process, the refresh token remains the same.
+
+    - If the component's first run occurs after 24 hours of the oAuth process, a new refresh token is obtained from the QuickBooks API.
+    
+    In both cases, both the refresh and access tokens are stored in the state file, along with a timestamp of the component run time.
+
+3. During subsequent component runs, the component checks if there is data present in the state file. If data is found, it compares the timestamp from oAuth with the timestamp from the state file. It will use the tokens with the freshest timestamp. Once the component finishes, the tokens are stored in the state file again, along with a new timestamp.
+
+By following these steps, the system ensures the proper handling of authorization for API requests.
+
 ### Company ID
 
 - To obtain Company ID:
