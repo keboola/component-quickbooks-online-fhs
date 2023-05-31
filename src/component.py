@@ -209,7 +209,8 @@ class Component(ComponentBase):
                 Mapping(endpoint=endpoint, data=input_data)
 
     def get_tokens(self, oauth):
-        refresh_token, access_token = None, None
+        refresh_token = oauth["data"]["refresh_token"]
+        access_token = oauth["data"]["access_token"]
 
         statefile = self.get_state_file()
         if statefile.get("tokens", {}):
@@ -222,17 +223,14 @@ class Component(ComponentBase):
                     refresh_token = statefile["tokens"].get("#refresh_token")
                     access_token = statefile["tokens"].get("#access_token")
                     logging.info("Loaded tokens from statefile.")
+                else:
+                    logging.info("Using tokens from oAuth.")
             else:
-                raise UserException("No timestamp found in statefile.")
+                raise UserException("No timestamp found in statefile, Using oAuth tokens.")
         else:
-            refresh_token = oauth["data"]["refresh_token"]
-            access_token = oauth["data"]["access_token"]
-            logging.info("No oauth data found in statefile. Using data from Authorization.")
+            logging.info("No oauth data found in statefile. Using oAuth tokens.")
 
-        if refresh_token and access_token:
-            return refresh_token, access_token
-        else:
-            raise UserException("Cannot read refresh token from oauth and/or statefile.")
+        return refresh_token, access_token
 
     def process_pnl_report(self, quickbooks_param, start_date, end_date, summarize_column_by):
         results_cash = []
