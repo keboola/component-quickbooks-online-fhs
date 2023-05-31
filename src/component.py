@@ -1,7 +1,7 @@
 import logging
 import csv
 import os
-from datetime import date
+import datetime
 from dateutil.relativedelta import relativedelta
 
 from mapping import Mapping
@@ -44,9 +44,8 @@ class Component(ComponentBase):
         start_date = None
         end_date = None
 
-        oauth = self.configuration.oauth_credentials
         params_company_id = self.configuration.parameters.get(KEY_COMPANY_ID, None)
-        self.refresh_token, self.access_token = self.get_tokens()
+        self.refresh_token, self.access_token = self.get_tokens(self.configuration.oauth_credentials)
 
         in_tables = self.get_input_tables_definitions()
         if in_tables:
@@ -67,8 +66,12 @@ class Component(ComponentBase):
             except QuickBooksClientException as e:
                 raise UserException(f"Component failed during run: {e}") from e
 
-        self.write_state_file({"#refresh_token": self.refresh_token,
-                               "#access_token": self.access_token})
+        self.write_state_file({
+            "tokens":
+                {"ts": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+                 "#refresh_token": self.refresh_token,
+                 "#access_token": self.access_token}
+        })
 
     @staticmethod
     def validate_company_id(company_id: str) -> None:
@@ -161,7 +164,7 @@ class Component(ComponentBase):
                     for endpoint in endpoints:
                         self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
 
-                    self.refresh_token, self.access_token = quickbooks_param.refresh_token,\
+                    self.refresh_token, self.access_token = quickbooks_param.refresh_token, \
                         quickbooks_param.access_token
 
     def process_endpoint(self, endpoint, quickbooks_param, start_date, end_date, summarize_column_by):
@@ -203,19 +206,31 @@ class Component(ComponentBase):
             else:
                 Mapping(endpoint=endpoint, data=input_data)
 
-    def get_tokens(self):
+    def get_tokens(self, oauth):
+        refresh_token, access_token = None, None
+
         statefile = self.get_state_file()
-        if statefile.get("#refresh_token", {}):
-            refresh_token = statefile.get("#refresh_token")
-            access_token = statefile.get("#access_token")
-            logging.info("Loaded tokens from statefile.")
+        if statefile.get("tokens", {}):
+            if statefile["tokens"].get("ts"):
+
+                ts_oauth = datetime.datetime.strptime(oauth["created"], "%Y-%m-%dT%H:%M:%S.%fZ")
+                ts_statefile = datetime.datetime.strptime(statefile["tokens"]["ts"], "%Y-%m-%dT%H:%M:%S.%fZ")
+
+                if ts_statefile > ts_oauth:
+                    refresh_token = statefile["tokens"].get("#refresh_token")
+                    access_token = statefile["tokens"].get("#access_token")
+                    logging.info("Loaded tokens from statefile.")
+            else:
+                raise UserException("No timestamp found in statefile.")
         else:
-            oauth = self.configuration.oauth_credentials
             refresh_token = oauth["data"]["refresh_token"]
             access_token = oauth["data"]["access_token"]
             logging.info("No oauth data found in statefile. Using data from Authorization.")
 
-        return refresh_token, access_token
+        if refresh_token and access_token:
+            return refresh_token, access_token
+        else:
+            raise UserException("Cannot read refresh token from oauth and/or statefile.")
 
     def process_pnl_report(self, quickbooks_param, start_date, end_date, summarize_column_by):
         results_cash = []
@@ -451,14 +466,14 @@ class Component(ComponentBase):
             return None
 
         dt_format = '%Y-%m-%d'
-        today = date.today()
+        today = datetime.date.today()
         if dt == "PrevMonthStart":
             result = today.replace(day=1) - relativedelta(months=1)
         elif dt == "PrevMonthEnd":
             result = today.replace(day=1) - relativedelta(days=1)
         else:
             try:
-                date.fromisoformat(dt)
+                datetime.date.fromisoformat(dt)
             except ValueError:
                 raise UserException(f"Date {dt} is invalid. Valid types are: "
                                     f"PrevMonthStart, PrevMonthEnd or YYYY-MM-DD")
