@@ -213,22 +213,18 @@ class Component(ComponentBase):
         access_token = oauth["data"]["access_token"]
 
         statefile = self.get_state_file()
-        if statefile.get("tokens", {}):
-            if statefile["tokens"].get("ts"):
+        if statefile.get("tokens", {}).get("ts"):
+            ts_oauth = datetime.datetime.strptime(oauth["created"], "%Y-%m-%dT%H:%M:%S.%fZ")
+            ts_statefile = datetime.datetime.strptime(statefile["tokens"]["ts"], "%Y-%m-%dT%H:%M:%S.%fZ")
 
-                ts_oauth = datetime.datetime.strptime(oauth["created"], "%Y-%m-%dT%H:%M:%S.%fZ")
-                ts_statefile = datetime.datetime.strptime(statefile["tokens"]["ts"], "%Y-%m-%dT%H:%M:%S.%fZ")
-
-                if ts_statefile > ts_oauth:
-                    refresh_token = statefile["tokens"].get("#refresh_token")
-                    access_token = statefile["tokens"].get("#access_token")
-                    logging.info("Loaded tokens from statefile.")
-                else:
-                    logging.info("Using tokens from oAuth.")
+            if ts_statefile > ts_oauth:
+                refresh_token = statefile["tokens"].get("#refresh_token")
+                access_token = statefile["tokens"].get("#access_token")
+                logging.info("Loaded tokens from statefile.")
             else:
-                raise UserException("No timestamp found in statefile, Using oAuth tokens.")
+                logging.info("Using tokens from oAuth.")
         else:
-            logging.info("No oauth data found in statefile. Using oAuth tokens.")
+            logging.warning("No timestamp found in statefile. Using oAuth tokens.")
 
         return refresh_token, access_token
 
