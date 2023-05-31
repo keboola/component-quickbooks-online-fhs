@@ -40,7 +40,13 @@ This component has two modes available:
 
 ### Application Authorization
 
-- By authorizing the application, KBC will safely communicate with QuickBooks API to handle the final authorization for API requests.
+By authorizing the application, Keboola securely communicates with the QuickBooks API to handle the authorization process for API requests. The QuickBooks API utilizes an access token and a refresh token through oAuth, both of which have expiration times set.
+
+The refresh token is used to obtain a new access token, which is then used to authenticate every request. The access token remains valid for one hour, while the refresh token remains valid for 24 hours. After each 24-hour period, a new token is obtained from the API.
+
+If, for any reason (such as entering a wrong company ID or manually terminating the component run), the process fails while obtaining the new refresh token, the new token cannot be saved to the state file and is consequently lost.
+
+This means that if the user encounters the error message "Failed to refresh access token, please re-authorize credentials: {"error":"invalid_grant"}", the only way to restore the configuration's functionality is to repeat the oAuth process.
 
 ### Company ID
 
@@ -112,11 +118,4 @@ This component has two modes available:
 
 
 ## Support ##
-If the component is missing the endpoints or reports you are looking for, please submit a support ticket or feel free to contact me directly. 
-         
-
-## Contact Info ##
-Leo Chan  
-Vancouver, Canada (PST time)   
-Email: leo@keboola.com  
-Private: cleojanten@hotmail.com   
+If the component is missing the endpoints or reports you are looking for, please submit a support ticket. 
