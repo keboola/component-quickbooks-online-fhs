@@ -45,7 +45,9 @@ class Component(ComponentBase):
         end_date = None
 
         params_company_id = self.configuration.parameters.get(KEY_COMPANY_ID, None)
-        self.refresh_token, self.access_token = self.get_tokens(self.configuration.oauth_credentials)
+
+        oauth = self.configuration.oauth_credentials
+        self.refresh_token, self.access_token = self.get_tokens(oauth)
 
         in_tables = self.get_input_tables_definitions()
         if in_tables:
