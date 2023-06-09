@@ -209,8 +209,12 @@ class Component(ComponentBase):
                 Mapping(endpoint=endpoint, data=input_data)
 
     def get_tokens(self, oauth):
-        refresh_token = oauth["data"]["refresh_token"]
-        access_token = oauth["data"]["access_token"]
+
+        try:
+            refresh_token = oauth["data"]["refresh_token"]
+            access_token = oauth["data"]["access_token"]
+        except TypeError:
+            raise UserException("oAuth data is not available.")
 
         statefile = self.get_state_file()
         if statefile.get("tokens", {}).get("ts"):
