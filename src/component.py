@@ -44,10 +44,10 @@ class Component(ComponentBase):
         start_date = None
         end_date = None
 
-        params_company_id = self.configuration.parameters.get(KEY_COMPANY_ID, None)
-
         oauth = self.configuration.oauth_credentials
         self.refresh_token, self.access_token = self.get_tokens(oauth)
+
+        params_company_id = self.configuration.parameters.get(KEY_COMPANY_ID, None)
 
         in_tables = self.get_input_tables_definitions()
         if in_tables:
