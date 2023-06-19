@@ -4,9 +4,10 @@ import requests
 import dateparser
 import urllib.parse as url_parse
 from requests.auth import HTTPBasicAuth
-
+from typing import Tuple
 from keboola.component.base import ComponentBase  # noqa
-
+import backoff
+from requests.exceptions import HTTPError
 
 requesting = requests.Session()
 
@@ -37,6 +38,7 @@ class QuickbooksClient:
             self.base_url = "https://quickbooks.api.intuit.com/v3/company"
         else:
             self.base_url = "https://sandbox-quickbooks.api.intuit.com/v3/company"
+            logging.info("Running client in Sandbox mode.")
 
         # Parameters for request
         self.access_token = access_token
@@ -50,6 +52,15 @@ class QuickbooksClient:
             "BalanceSheet",
             "TrialBalance"
         ]
+
+    def get_new_refresh_token(self) -> Tuple[str, str]:
+        try:
+            self.refresh_access_token()
+        except Exception as e:
+            raise QuickBooksClientException(e) from e
+
+        self.access_token_refreshed = False  # this is here in case the token would change during the component run
+        return self.refresh_token, self.access_token
 
     def fetch(self, endpoint, report_api_bool, start_date, end_date, query="", params=None):
         """
@@ -89,6 +100,7 @@ class QuickbooksClient:
             else:
                 self.data_request()
 
+    @backoff.on_exception(backoff.expo, HTTPError, max_tries=3)
     def refresh_access_token(self):
         """
         Get a new access token with refresh token.
@@ -103,6 +115,8 @@ class QuickbooksClient:
         }
 
         r = requests.post(url, auth=HTTPBasicAuth(self.app_key, self.app_secret), data=param)
+        r.raise_for_status()
+
         results = r.json()
 
         if "error" in results:

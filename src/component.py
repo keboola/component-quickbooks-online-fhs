@@ -3,6 +3,8 @@ import csv
 import os
 import datetime
 from dateutil.relativedelta import relativedelta
+import requests
+import json
 
 from mapping import Mapping
 from client import QuickbooksClient, QuickBooksClientException
@@ -10,6 +12,12 @@ from report_mapping import ReportMapping
 
 from keboola.component.base import ComponentBase
 from keboola.component.exceptions import UserException  # noqa
+
+
+URL_SUFFIXES = {"US": ".keboola.com",
+                "EU": ".eu-central-1.keboola.com",
+                "AZURE-EU": ".north-europe.azure.keboola.com",
+                "CURRENT_STACK": os.environ.get('KBC_STACKID', 'connection.keboola.com').replace('connection', '')}
 
 # configuration variables
 KEY_COMPANY_ID = 'companyid'
@@ -21,10 +29,12 @@ KEY_END_DATE = 'end_date'
 KEY_GROUP_DESTINATION = 'destination'
 KEY_LOAD_TYPE = 'load_type'
 KEY_SUMMARIZE_COLUMN_BY = 'summarize_column_by'
+KEY_SANDBOX = 'sandbox'
+KEY_STORAGE_API_KEY = 'storage_api_key'
 
 # list of mandatory parameters => if some is missing,
 # component will fail with readable message on initialization.
-REQUIRED_PARAMETERS = [KEY_COMPANY_ID, KEY_ENDPOINTS, KEY_GROUP_DESTINATION]
+REQUIRED_PARAMETERS = [KEY_COMPANY_ID, KEY_ENDPOINTS, KEY_GROUP_DESTINATION, KEY_STORAGE_API_KEY]
 
 # QuickBooks Parameters
 BASE_URL = "https://quickbooks.api.intuit.com"
@@ -40,7 +50,7 @@ class Component(ComponentBase):
 
     def run(self):
 
-        sandbox = False
+        sandbox = self.configuration.parameters.get(KEY_SANDBOX, False)
         start_date = None
         end_date = None
 
@@ -52,7 +62,6 @@ class Component(ComponentBase):
         in_tables = self.get_input_tables_definitions()
         if in_tables:
             cfg_table = in_tables[0]
-            sandbox = False
         else:
             cfg_table = False
 
@@ -128,6 +137,7 @@ class Component(ComponentBase):
 
         quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=refresh_token,
                                             access_token=access_token, oauth=oauth, sandbox=sandbox)
+        quickbooks_param.get_new_refresh_token()
 
         # Fetching reports for each configured endpoint
         for endpoint in endpoints:
@@ -144,6 +154,7 @@ class Component(ComponentBase):
                 logging.info("Not rows in input table detected, the component will process selected endpoints only.")
                 quickbooks_param = QuickbooksClient(company_id=params_company_id, refresh_token=self.refresh_token,
                                                     access_token=self.access_token, oauth=oauth, sandbox=sandbox)
+                quickbooks_param.get_new_refresh_token()
                 for endpoint in _endpoints:
                     self.process_endpoint(endpoint, quickbooks_param, start_date=None, end_date=None,
                                           summarize_column_by=None)
@@ -161,6 +172,11 @@ class Component(ComponentBase):
 
                     quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=self.refresh_token,
                                                         access_token=self.access_token, oauth=oauth, sandbox=sandbox)
+                    new_refresh_token, new_access_token = quickbooks_param.get_new_refresh_token()
+                    if self.refresh_token != new_refresh_token:
+                        pass
+
+                    self.save_new_refresh_token(new_refresh_token, new_access_token)
 
                     # Fetching reports for each configured endpoint
                     for endpoint in endpoints:
@@ -168,6 +184,64 @@ class Component(ComponentBase):
 
                     self.refresh_token, self.access_token = quickbooks_param.refresh_token, \
                         quickbooks_param.access_token
+
+    def save_new_refresh_token(self, refresh_token, access_token):
+        encrypted_refresh_token = self.encrypt(refresh_token)
+        encrypted_access_token = self.encrypt(access_token)
+
+        new_state = {
+            "tokens":
+                {"ts": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+                 "#refresh_token": encrypted_refresh_token,
+                 "#access_token": encrypted_access_token}
+        }
+        self.update_config_state(token=self.configuration.parameters.get(KEY_STORAGE_API_KEY),
+                                 region="CURRENT_STACK",
+                                 component_id=self.environment_variables.component_id,
+                                 configurationId=self.environment_variables.config_id,
+                                 state=new_state)
+
+    def encrypt(self, token: str) -> str:
+        url = "https://encryption.keboola.com/encrypt"
+        params = {
+            "componentId": self.environment_variables.component_id,
+            "projectId": self.environment_variables.project_id,
+            "configId": self.environment_variables.config_id
+        }
+        headers = {"Content-Type": "text/plain"}
+
+        response = requests.post(url,
+                                 data=token,
+                                 params=params,
+                                 headers=headers)
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as e:
+            raise UserException("Unable to encrypt token using Keboola encrypt API.") from e
+        else:
+            return response.text
+
+    @staticmethod
+    def update_config_state(token, region, component_id, configurationId, state, branch_id='default'):
+        if not branch_id:
+            branch_id = 'default'
+
+        url = f'https://connection{URL_SUFFIXES[region]}/v2/storage/branch/{branch_id}' \
+              f'/components/{component_id}/configs/' \
+              f'{configurationId}/state'
+
+        parameters = {'state': json.dumps(state)}
+        headers = {'Content-Type': 'application/x-www-form-urlencoded', 'X-StorageApi-Token': token}
+        response = requests.put(url,
+                                data=parameters,
+                                headers=headers)
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as e:
+            raise UserException("Unable to update component state using Keboola Storage API.") from e
+        else:
+            print(response.json())
+            exit()
 
     def process_endpoint(self, endpoint, quickbooks_param, start_date, end_date, summarize_column_by):
 
