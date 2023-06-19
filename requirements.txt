@@ -5,6 +5,6 @@ keboola.http-client
 dateparser==1.1.8
 regex
 keboola.csvwriter
-keboola.utils ==1.1.0
+keboola.utils==1.1.0
 pandas==2.0.0
-backoff=2.2.1
+backoff==2.2.1
