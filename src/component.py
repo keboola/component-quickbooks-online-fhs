@@ -137,7 +137,7 @@ class Component(ComponentBase):
 
         quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=refresh_token,
                                             access_token=access_token, oauth=oauth, sandbox=sandbox)
-        quickbooks_param.get_new_refresh_token()
+        self.process_oauth_tokens(quickbooks_param)
 
         # Fetching reports for each configured endpoint
         for endpoint in endpoints:
@@ -154,7 +154,7 @@ class Component(ComponentBase):
                 logging.info("Not rows in input table detected, the component will process selected endpoints only.")
                 quickbooks_param = QuickbooksClient(company_id=params_company_id, refresh_token=self.refresh_token,
                                                     access_token=self.access_token, oauth=oauth, sandbox=sandbox)
-                quickbooks_param.get_new_refresh_token()
+                self.process_oauth_tokens(quickbooks_param)
                 for endpoint in _endpoints:
                     self.process_endpoint(endpoint, quickbooks_param, start_date=None, end_date=None,
                                           summarize_column_by=None)
@@ -172,11 +172,8 @@ class Component(ComponentBase):
 
                     quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=self.refresh_token,
                                                         access_token=self.access_token, oauth=oauth, sandbox=sandbox)
-                    new_refresh_token, new_access_token = quickbooks_param.get_new_refresh_token()
-                    if self.refresh_token != new_refresh_token:
-                        pass
 
-                    self.save_new_refresh_token(new_refresh_token, new_access_token)
+                    self.process_oauth_tokens(quickbooks_param)
 
                     # Fetching reports for each configured endpoint
                     for endpoint in endpoints:
@@ -185,7 +182,13 @@ class Component(ComponentBase):
                     self.refresh_token, self.access_token = quickbooks_param.refresh_token, \
                         quickbooks_param.access_token
 
-    def save_new_refresh_token(self, refresh_token, access_token):
+    def process_oauth_tokens(self, client) -> None:
+        """Uses Quickbooks client to get new tokens and saves them using API if they have changed since the last run."""
+        new_refresh_token, new_access_token = client.get_new_refresh_token()
+        if self.refresh_token != new_refresh_token or self.access_token != new_access_token:
+            self.save_new_oauth_tokens(new_refresh_token, new_access_token)
+
+    def save_new_oauth_tokens(self, refresh_token: str, access_token: str) -> None:
         encrypted_refresh_token = self.encrypt(refresh_token)
         encrypted_access_token = self.encrypt(access_token)
 
@@ -195,8 +198,7 @@ class Component(ComponentBase):
                  "#refresh_token": encrypted_refresh_token,
                  "#access_token": encrypted_access_token}
         }
-        self.update_config_state(token=self.configuration.parameters.get(KEY_STORAGE_API_KEY),
-                                 region="CURRENT_STACK",
+        self.update_config_state(region="CURRENT_STACK",
                                  component_id=self.environment_variables.component_id,
                                  configurationId=self.environment_variables.config_id,
                                  state=new_state)
@@ -221,8 +223,7 @@ class Component(ComponentBase):
         else:
             return response.text
 
-    @staticmethod
-    def update_config_state(token, region, component_id, configurationId, state, branch_id='default'):
+    def update_config_state(self, region, component_id, configurationId, state, branch_id='default'):
         if not branch_id:
             branch_id = 'default'
 
@@ -231,7 +232,7 @@ class Component(ComponentBase):
               f'{configurationId}/state'
 
         parameters = {'state': json.dumps(state)}
-        headers = {'Content-Type': 'application/x-www-form-urlencoded', 'X-StorageApi-Token': token}
+        headers = {'Content-Type': 'application/x-www-form-urlencoded', 'X-StorageApi-Token': self._get_storage_token()}
         response = requests.put(url,
                                 data=parameters,
                                 headers=headers)
@@ -239,9 +240,6 @@ class Component(ComponentBase):
             response.raise_for_status()
         except requests.HTTPError as e:
             raise UserException("Unable to update component state using Keboola Storage API.") from e
-        else:
-            print(response.json())
-            exit()
 
     def process_endpoint(self, endpoint, quickbooks_param, start_date, end_date, summarize_column_by):
 
@@ -553,6 +551,12 @@ class Component(ComponentBase):
                                     f"PrevMonthStart, PrevMonthEnd or YYYY-MM-DD")
             return dt
         return result.strftime(dt_format)
+
+    def _get_storage_token(self) -> str:
+        token = self.configuration.parameters.get('#storage_token') or self.environment_variables.token
+        if not token:
+            raise UserException("Cannot retrieve storage token from env variables and/or config.")
+        return token
 
 
 """
