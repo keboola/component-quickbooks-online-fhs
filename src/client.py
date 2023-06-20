@@ -181,14 +181,18 @@ class QuickbooksClient:
                 if not self.access_token_refreshed:
                     self.refresh_access_token()
                 else:
-                    error = data.json().get("fault").get("error")[0]
-                    if error:
-                        if error.get("message"):
-                            raise QuickBooksClientException(f"Authorization failed. Please check Company ID and/or "
-                                                            f"reauthorize the application: {error.get('message')}")
-                        else:
-                            raise QuickBooksClientException(error)
-                    raise QuickBooksClientException(data.text)
+                    if data:
+                        error = data.json().get("fault").get("error")[0]
+                        if error:
+                            if error.get("message"):
+                                raise QuickBooksClientException(f"Authorization failed. Please check Company ID and/or "
+                                                                f"reauthorize the application: {error.get('message')}")
+                            else:
+                                raise QuickBooksClientException(error)
+                        raise QuickBooksClientException(data.text)
+                    else:
+                        raise QuickBooksClientException(f"Client cannot fetch data from url {url}, please check "
+                                                        f"defined endpoints.")
             else:
                 request_success = True
 
