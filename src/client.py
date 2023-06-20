@@ -191,7 +191,7 @@ class QuickbooksClient:
                         raise QuickBooksClientException(data.text)
                     else:
                         raise QuickBooksClientException(f"Client cannot fetch data from url {url}, please check "
-                                                        f"defined endpoints.")
+                                                        f"defined endpoints and company_id.")
             else:
                 request_success = True
 
