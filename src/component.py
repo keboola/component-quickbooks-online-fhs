@@ -225,7 +225,7 @@ class Component(ComponentBase):
         else:
             return response.text
 
-    @backoff.on_exception(backoff.expo, requests.exceptions.RequestException, max_tries=3)
+    @backoff.on_exception(backoff.expo, requests.exceptions.RequestException, max_tries=5)
     def update_config_state(self, region, component_id, configurationId, state, branch_id='default'):
         if not branch_id:
             branch_id = 'default'
@@ -241,8 +241,15 @@ class Component(ComponentBase):
                                 headers=headers)
         try:
             response.raise_for_status()
-        except requests.HTTPError as e:
-            raise UserException("Unable to update component state using Keboola Storage API.") from e
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Unable to update component state using Keboola Storage API: {e}")
+            self.write_state_file({
+                "tokens":
+                    {"ts": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+                     "#refresh_token": self.refresh_token,
+                     "#access_token": self.access_token}
+            })
+            exit(0)
 
     def process_endpoint(self, endpoint, quickbooks_param, start_date, end_date, summarize_column_by):
 
