@@ -13,7 +13,6 @@ from report_mapping import ReportMapping
 from keboola.component.base import ComponentBase
 from keboola.component.exceptions import UserException  # noqa
 
-
 URL_SUFFIXES = {"US": ".keboola.com",
                 "EU": ".eu-central-1.keboola.com",
                 "AZURE-EU": ".north-europe.azure.keboola.com",
@@ -188,15 +187,17 @@ class Component(ComponentBase):
             self.save_new_oauth_tokens(new_refresh_token, new_access_token)
 
     def save_new_oauth_tokens(self, refresh_token: str, access_token: str) -> None:
+        logging.info("Saving new tokens to state using Keboola API.")
         encrypted_refresh_token = self.encrypt(refresh_token)
         encrypted_access_token = self.encrypt(access_token)
 
         new_state = {
-            "tokens":
-                {"ts": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
-                 "#refresh_token": encrypted_refresh_token,
-                 "#access_token": encrypted_access_token}
-        }
+            "component": {
+                "tokens":
+                    {"ts": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+                     "#refresh_token": encrypted_refresh_token,
+                     "#access_token": encrypted_access_token}
+            }}
         self.update_config_state(region="CURRENT_STACK",
                                  component_id=self.environment_variables.component_id,
                                  configurationId=self.environment_variables.config_id,
