@@ -258,7 +258,8 @@ class Component(ComponentBase):
             endpoint = endpoint
             report_api_bool = False
 
-        self.fetch(quickbooks_param=quickbooks_param, endpoint=endpoint, report_api_bool=report_api_bool)
+        self.fetch(quickbooks_param=quickbooks_param, endpoint=endpoint, report_api_bool=report_api_bool,
+                   start_date=start_date, end_date=end_date)
 
         logging.info("Parsing API results...")
         input_data = quickbooks_param.data
