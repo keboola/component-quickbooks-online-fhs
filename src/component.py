@@ -30,11 +30,10 @@ KEY_GROUP_DESTINATION = 'destination'
 KEY_LOAD_TYPE = 'load_type'
 KEY_SUMMARIZE_COLUMN_BY = 'summarize_column_by'
 KEY_SANDBOX = 'sandbox'
-KEY_STORAGE_API_KEY = 'storage_api_key'
 
 # list of mandatory parameters => if some is missing,
 # component will fail with readable message on initialization.
-REQUIRED_PARAMETERS = [KEY_COMPANY_ID, KEY_ENDPOINTS, KEY_GROUP_DESTINATION, KEY_STORAGE_API_KEY]
+REQUIRED_PARAMETERS = [KEY_COMPANY_ID, KEY_ENDPOINTS, KEY_GROUP_DESTINATION]
 
 # QuickBooks Parameters
 BASE_URL = "https://quickbooks.api.intuit.com"
