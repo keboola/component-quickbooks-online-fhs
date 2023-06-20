@@ -125,7 +125,6 @@ class QuickbooksClient:
 
         self.access_token = results["access_token"]
         self.refresh_token = results["refresh_token"]
-        logging.info("Client got new tokens from the API.")
         self.access_token_refreshed = True
 
     def get_count(self):
