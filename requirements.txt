@@ -1,6 +1,6 @@
 mock
 freezegun
-keboola.component==1.4.0
+keboola.component==1.4.3
 keboola.http-client
 dateparser==1.1.8
 regex

@@ -201,7 +201,8 @@ class Component(ComponentBase):
         self.update_config_state(region="CURRENT_STACK",
                                  component_id=self.environment_variables.component_id,
                                  configurationId=self.environment_variables.config_id,
-                                 state=new_state)
+                                 state=new_state,
+                                 branch_id=self.environment_variables.branch_id)
 
     def encrypt(self, token: str) -> str:
         url = "https://encryption.keboola.com/encrypt"
