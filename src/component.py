@@ -5,6 +5,7 @@ import datetime
 from dateutil.relativedelta import relativedelta
 import requests
 import json
+import backoff
 
 from mapping import Mapping
 from client import QuickbooksClient, QuickBooksClientException
@@ -224,6 +225,7 @@ class Component(ComponentBase):
         else:
             return response.text
 
+    @backoff.on_exception(backoff.expo, requests.exceptions.RequestException, max_tries=3)
     def update_config_state(self, region, component_id, configurationId, state, branch_id='default'):
         if not branch_id:
             branch_id = 'default'
