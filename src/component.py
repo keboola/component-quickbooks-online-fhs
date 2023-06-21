@@ -539,6 +539,7 @@ class Component(ComponentBase):
         for row in rows:
             process_object(row, class_name)
 
+        logging.info(results)
         return results
 
     def save_pnl_report_to_csv(self, table_name: str, results: list, summarize: bool):
