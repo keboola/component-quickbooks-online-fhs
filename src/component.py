@@ -194,6 +194,7 @@ class Component(ComponentBase):
 
     def save_new_oauth_tokens(self, refresh_token: str, access_token: str) -> None:
         logging.info("Saving new tokens to state using Keboola API.")
+
         encrypted_refresh_token = self.encrypt(refresh_token)
         encrypted_access_token = self.encrypt(access_token)
 
@@ -210,6 +211,7 @@ class Component(ComponentBase):
                                  state=new_state,
                                  branch_id=self.environment_variables.branch_id)
 
+    @backoff.on_exception(backoff.expo, requests.exceptions.RequestException, max_tries=5)
     def encrypt(self, token: str) -> str:
         url = "https://encryption.keboola.com/encrypt"
         params = {
@@ -225,8 +227,15 @@ class Component(ComponentBase):
                                  headers=headers)
         try:
             response.raise_for_status()
-        except requests.HTTPError as e:
-            raise UserException("Unable to encrypt token using Keboola encrypt API.") from e
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Unable to encrypt token using Keboola encrypt API: {e}")
+            self.write_state_file({
+                "tokens":
+                    {"ts": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+                     "#refresh_token": self.refresh_token,
+                     "#access_token": self.access_token}
+            })
+            exit(0)
         else:
             return response.text
 
