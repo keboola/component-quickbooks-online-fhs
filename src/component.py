@@ -420,7 +420,7 @@ class Component(ComponentBase):
                                   f"Valid filters: {possible_filters}")
                     item = None
             else:
-                logging.info(f"Filtering for pnl report is not set.")
+                logging.info("Filtering for pnl report is not set.")
 
             self.fetch(quickbooks_param=quickbooks_param,
                        endpoint="ProfitAndLoss",
