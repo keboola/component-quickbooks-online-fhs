@@ -184,7 +184,7 @@ class Component(ComponentBase):
     def process_oauth_tokens(self, client) -> None:
         """Uses Quickbooks client to get new tokens and saves them using API if they have changed since the last run."""
         new_refresh_token, new_access_token = client.get_new_refresh_token()
-        if self.refresh_token != new_refresh_token or self.access_token != new_access_token:
+        if self.refresh_token != new_refresh_token:
             self.save_new_oauth_tokens(new_refresh_token, new_access_token)
 
             # We also save new tokens to class vars, so we can save them unencrypted if case statefile update fails
