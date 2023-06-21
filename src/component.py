@@ -47,6 +47,10 @@ class Component(ComponentBase):
         self.refresh_token = None
         self.access_token = None
 
+        if self.environment_variables.branch_id != "default":
+            raise UserException("This component uses Keboola API to store the statefile. "
+                                "Running is dev branch is disabled")
+
     def run(self):
 
         sandbox = self.configuration.parameters.get(KEY_SANDBOX, False)
@@ -215,7 +219,6 @@ class Component(ComponentBase):
                                  configurationId=self.environment_variables.config_id,
                                  state=new_state,
                                  branch_id=self.environment_variables.branch_id)
-    # TODO: BLOCK EXECUTING IN DEV BRANCH
 
     @backoff.on_exception(backoff.expo, requests.exceptions.RequestException, max_tries=5)
     def encrypt(self, token: str) -> str:
