@@ -136,7 +136,8 @@ class Component(ComponentBase):
 
         quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=refresh_token,
                                             access_token=access_token, oauth=oauth, sandbox=sandbox)
-        self.process_oauth_tokens(quickbooks_param)
+        if not sandbox:
+            self.process_oauth_tokens(quickbooks_param)
 
         # Fetching reports for each configured endpoint
         for endpoint in endpoints:
@@ -153,7 +154,8 @@ class Component(ComponentBase):
                 logging.info("Not rows in input table detected, the component will process selected endpoints only.")
                 quickbooks_param = QuickbooksClient(company_id=params_company_id, refresh_token=self.refresh_token,
                                                     access_token=self.access_token, oauth=oauth, sandbox=sandbox)
-                self.process_oauth_tokens(quickbooks_param)
+                if not sandbox:
+                    self.process_oauth_tokens(quickbooks_param)
                 for endpoint in _endpoints:
                     self.process_endpoint(endpoint, quickbooks_param, start_date=None, end_date=None,
                                           summarize_column_by=None)
@@ -168,15 +170,18 @@ class Component(ComponentBase):
                     end_date = row["end_date"]
                     self.incremental = True
                     summarize_column_by = row["segment_data_by"] or None
+                    item = row.get("item", None)
 
                     quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=self.refresh_token,
                                                         access_token=self.access_token, oauth=oauth, sandbox=sandbox)
 
-                    self.process_oauth_tokens(quickbooks_param)
+                    if not sandbox:
+                        self.process_oauth_tokens(quickbooks_param)
 
                     # Fetching reports for each configured endpoint
                     for endpoint in endpoints:
-                        self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
+                        self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by,
+                                              item)
 
                     self.refresh_token, self.access_token = quickbooks_param.refresh_token, \
                         quickbooks_param.access_token
@@ -265,11 +270,12 @@ class Component(ComponentBase):
             })
             exit(0)
 
-    def process_endpoint(self, endpoint, quickbooks_param, start_date, end_date, summarize_column_by):
+    def process_endpoint(self, endpoint, quickbooks_param, start_date, end_date, summarize_column_by,
+                         item: str = None):
 
         if endpoint == "ProfitAndLossQuery":
             self.process_pnl_report(quickbooks_param=quickbooks_param, start_date=start_date, end_date=end_date,
-                                    summarize_column_by=summarize_column_by)
+                                    summarize_column_by=summarize_column_by, item=item)
             return
 
         if "**" in endpoint:
@@ -329,7 +335,7 @@ class Component(ComponentBase):
 
         return refresh_token, access_token
 
-    def process_pnl_report(self, quickbooks_param, start_date, end_date, summarize_column_by):
+    def process_pnl_report(self, quickbooks_param, start_date, end_date, summarize_column_by, item: str = None):
         results_cash = []
         results_accrual = []
 
@@ -386,12 +392,14 @@ class Component(ComponentBase):
                    query="select * from Class")
 
         query_result = quickbooks_param.data
-        classes = [item["Name"] for item in query_result.get("Class", []) if item.get("Name")]
+        classes = [c["Name"] for c in query_result.get("Class", []) if c.get("Name")]
         logging.info(f"Found Classes: {classes}")
 
         if not classes:
-            logging.warning("API returned no Classes, the component will return total.")
+            logging.warning("API returned no Classes, the component will return total and filtering by item "
+                            "parameter will be disabled.")
             classes = ["Total"]
+            item = False
 
         params = {}
         summarize = False
@@ -401,6 +409,18 @@ class Component(ComponentBase):
 
         for class_name in classes:
             logging.info(f"Processing class: {class_name}")
+
+            possible_filters = ["Classes"]
+            if item:
+                if item in possible_filters:
+                    params["item"] = class_name
+                    logging.info(f"Filtering for pnl report is set to: {item}")
+                else:
+                    logging.error(f"Filter {item} is unprocessable. Filtering will not be enabled. "
+                                  f"Valid filters: {possible_filters}")
+                    item = None
+            else:
+                logging.info(f"Filtering for pnl report is not set.")
 
             self.fetch(quickbooks_param=quickbooks_param,
                        endpoint="ProfitAndLoss",
@@ -449,6 +469,9 @@ class Component(ComponentBase):
             suffix = "_" + str(summarize_by)
         else:
             suffix = ""
+
+        if item:
+            suffix += "_item"
 
         self.save_pnl_report_to_csv(table_name=f"ProfitAndLossQuery_cash{suffix}.csv", results=results_cash,
                                     summarize=summarize_by)
