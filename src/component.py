@@ -215,6 +215,7 @@ class Component(ComponentBase):
                                  configurationId=self.environment_variables.config_id,
                                  state=new_state,
                                  branch_id=self.environment_variables.branch_id)
+    # TODO: BLOCK EXECUTING IN DEV BRANCH
 
     @backoff.on_exception(backoff.expo, requests.exceptions.RequestException, max_tries=5)
     def encrypt(self, token: str) -> str:
@@ -481,7 +482,7 @@ class Component(ComponentBase):
                                     summarize=summarize_by)
 
     @staticmethod
-    def preprocess_dict(obj, class_name, summarize_by, currency, start_date, end_date):
+    def c(obj, class_name, summarize_by, currency, start_date, end_date):
         logging.info(obj)
         results = []
 
