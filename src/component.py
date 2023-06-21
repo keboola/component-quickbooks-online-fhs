@@ -415,7 +415,7 @@ class Component(ComponentBase):
             possible_filters = ["Classes"]
             if item:
                 if item in possible_filters:
-                    params["item"] = class_id
+                    params["class"] = class_id
                     logging.info(f"Filtering for pnl report is set to: {item}")
                 else:
                     logging.error(f"Filter {item} is unprocessable. Filtering will not be enabled. "
