@@ -482,6 +482,7 @@ class Component(ComponentBase):
 
     @staticmethod
     def preprocess_dict(obj, class_name, summarize_by, currency, start_date, end_date):
+        logging.info(obj)
         results = []
 
         rows = obj['Rows']['Row']
@@ -539,7 +540,6 @@ class Component(ComponentBase):
         for row in rows:
             process_object(row, class_name)
 
-        logging.info(results)
         return results
 
     def save_pnl_report_to_csv(self, table_name: str, results: list, summarize: bool):
