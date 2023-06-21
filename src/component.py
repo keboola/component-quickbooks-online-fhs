@@ -393,12 +393,14 @@ class Component(ComponentBase):
 
         query_result = quickbooks_param.data
         classes = [c["Name"] for c in query_result.get("Class", []) if c.get("Name")]
+        class_ids = [c["Id"] for c in query_result.get("Class", []) if c.get("Id")]
         logging.info(f"Found Classes: {classes}")
 
         if not classes:
             logging.warning("API returned no Classes, the component will return total and filtering by item "
                             "parameter will be disabled.")
             classes = ["Total"]
+            class_ids = [None]
             item = False
 
         params = {}
@@ -407,13 +409,13 @@ class Component(ComponentBase):
             summarize = True
             params["summarize_column_by"] = summarize_column_by
 
-        for class_name in classes:
-            logging.info(f"Processing class: {class_name}")
+        for class_name, class_id in zip(classes, class_ids):
+            logging.info(f"Processing class: {class_name} with id {class_id}")
 
             possible_filters = ["Classes"]
             if item:
                 if item in possible_filters:
-                    params["item"] = class_name
+                    params["item"] = class_id
                     logging.info(f"Filtering for pnl report is set to: {item}")
                 else:
                     logging.error(f"Filter {item} is unprocessable. Filtering will not be enabled. "
