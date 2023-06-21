@@ -187,6 +187,11 @@ class Component(ComponentBase):
         if self.refresh_token != new_refresh_token or self.access_token != new_access_token:
             self.save_new_oauth_tokens(new_refresh_token, new_access_token)
 
+            # We also save new tokens to class vars, so we can save them unencrypted if case statefile update fails
+            # in update_config_state() method.
+            self.refresh_token = new_refresh_token
+            self.access_token = new_access_token
+
     def save_new_oauth_tokens(self, refresh_token: str, access_token: str) -> None:
         logging.info("Saving new tokens to state using Keboola API.")
         encrypted_refresh_token = self.encrypt(refresh_token)
