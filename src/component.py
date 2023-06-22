@@ -47,6 +47,12 @@ class Component(ComponentBase):
         self.refresh_token = None
         self.access_token = None
 
+        """
+        if self.environment_variables.branch_id != "default":
+            raise UserException("This component uses Keboola API to store the statefile. "
+                                "Running is dev branch is disabled")
+        """
+
     def run(self):
 
         sandbox = self.configuration.parameters.get(KEY_SANDBOX, False)
@@ -384,14 +390,12 @@ class Component(ComponentBase):
         summary_names = ["Total"]
         summary_ids = [None]
         params = {}
-        summarize = False
-        summarize_by = "TOTAL"
 
-        possible_filters = ["Class", "Department"]
-        if summarize_column_by not in possible_filters:
-            summarize_column_by = False
+        valid_object_summaries = ["Class", "Department", "Total"]
+        if summarize_column_by not in valid_object_summaries:
+            raise UserException(f"The component can process ProfitAndLossQuery only for {valid_object_summaries}.")
 
-        if summarize_column_by:
+        if summarize_column_by != "Total":
             self.fetch(quickbooks_param=quickbooks_param,
                        endpoint="CustomQuery",
                        report_api_bool=True,
@@ -410,8 +414,8 @@ class Component(ComponentBase):
                 raise UserException(f"API returned no {summarize_column_by}. Please make sure you have relevant "
                                     f"objects set up in your Quickbooks account.")
             else:
-                summarize = True if summarize_column_by else False
-                if summarize:
+                logging.info(f"Summarize is: {summarize_column_by}")
+                if summarize_column_by:
                     if summarize_column_by == "Class":
                         params["summarize_column_by"] = "Classes"
                     elif summarize_column_by == "Department":
@@ -422,11 +426,10 @@ class Component(ComponentBase):
         for summary_name, summary_id in zip(summary_names, summary_ids):
             logging.info(f"Processing summary: {summary_names} with id {summary_ids}")
 
-            if summarize:
-                if summarize_column_by:
-                    # filter results by Classes or Departments
-                    params[str(summarize_column_by).lower()] = summary_id
-                    logging.info(f"Filtering for pnl report is set to: {summarize_column_by}")
+            if summarize_column_by:
+                # filter results by Classes or Departments
+                params[str(summarize_column_by).lower()] = summary_id
+                logging.info(f"Filtering for pnl report is set to: {summarize_column_by}")
             else:
                 logging.info("Filtering for pnl report is not set.")
 
@@ -441,6 +444,8 @@ class Component(ComponentBase):
             summarize_by = quickbooks_param.data['Header'].get("SummarizeColumnsBy", False)
 
             if not summarize_by:
+                # This part is currently not used since we always group by Class, Department or Total
+
                 report_accrual = quickbooks_param.data['Rows']['Row']
                 report_cash = quickbooks_param.data_2['Rows']['Row']
 
@@ -471,15 +476,16 @@ class Component(ComponentBase):
                                                             start_date=start_date,
                                                             end_date=end_date))
 
-        if summarize:
+        """
+        # This is here in case we will ever need to do reports that are not summarized
+        if summarize_by:
             suffix = "_" + str(summarize_by)
         else:
             suffix = ""
+        """
 
-        self.save_pnl_report_to_csv(table_name=f"ProfitAndLossQuery_cash{suffix}.csv", results=results_cash,
-                                    summarize=summarize_by)
-        self.save_pnl_report_to_csv(table_name=f"ProfitAndLossQuery_accrual{suffix}.csv", results=results_accrual,
-                                    summarize=summarize_by)
+        self.save_pnl_report_to_csv(table_name=f"ProfitAndLossQuery_cash.csv", results=results_cash)
+        self.save_pnl_report_to_csv(table_name=f"ProfitAndLossQuery_accrual.csv", results=results_accrual)
 
     @staticmethod
     def preprocess_dict(obj, class_name, summarize_by, currency, start_date, end_date):
@@ -543,17 +549,13 @@ class Component(ComponentBase):
 
         return results
 
-    def save_pnl_report_to_csv(self, table_name: str, results: list, summarize: bool):
+    def save_pnl_report_to_csv(self, table_name: str, results: list):
 
         logging.info(f"Saving pnl_report results to {table_name}.")
 
-        if not summarize:
-            pk = ["class", "name", "obj_type", "start_date", "end_date"]
-            columns = ["class", "name", "value", "obj_type", "obj_group", "start_date", "end_date"]
-        else:
-            pk = ["class", "name", "obj_type", "category_id", "start_date", "end_date"]
-            columns = ["class", "name", "value", "obj_type", "obj_group", "category_name", "category_id",
-                       "start_date", "end_date", "summarize_by", "currency"]
+        pk = ["class", "name", "obj_type", "category_id", "start_date", "end_date"]
+        columns = ["class", "name", "value", "obj_type", "obj_group", "category_name", "category_id",
+                   "start_date", "end_date", "summarize_by", "currency"]
 
         table_def = self.create_out_table_definition(table_name, primary_key=pk, incremental=self.incremental)
 
