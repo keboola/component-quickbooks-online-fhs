@@ -426,7 +426,7 @@ class Component(ComponentBase):
         for summary_name, summary_id in zip(summary_names, summary_ids):
             logging.info(f"Processing summary: {summary_names} with id {summary_ids}")
 
-            if summarize_column_by:
+            if summarize_column_by in ["Class", "Department"]:
                 # filter results by Classes or Departments
                 params[str(summarize_column_by).lower()] = summary_id
                 logging.info(f"Filtering for pnl report is set to: {summarize_column_by}")
@@ -489,7 +489,6 @@ class Component(ComponentBase):
 
     @staticmethod
     def preprocess_dict(obj, class_name, summarize_by, currency, start_date, end_date):
-        logging.info(obj)
         results = []
 
         rows = obj['Rows']['Row']
