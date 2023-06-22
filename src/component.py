@@ -484,8 +484,8 @@ class Component(ComponentBase):
             suffix = ""
         """
 
-        self.save_pnl_report_to_csv(table_name=f"ProfitAndLossQuery_cash.csv", results=results_cash)
-        self.save_pnl_report_to_csv(table_name=f"ProfitAndLossQuery_accrual.csv", results=results_accrual)
+        self.save_pnl_report_to_csv(table_name="ProfitAndLossQuery_cash.csv", results=results_cash)
+        self.save_pnl_report_to_csv(table_name="ProfitAndLossQuery_accrual.csv", results=results_accrual)
 
     @staticmethod
     def preprocess_dict(obj, class_name, summarize_by, currency, start_date, end_date):
