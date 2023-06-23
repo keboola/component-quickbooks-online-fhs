@@ -47,6 +47,7 @@ class Component(ComponentBase):
         self.refresh_token = None
         self.access_token = None
 
+        logging.info(self.environment_variables.branch_id)
         if self.environment_variables.branch_id != "default":
             raise UserException("This component uses Keboola API to store the statefile. "
                                 "Running is dev branch is disabled")
