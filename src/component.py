@@ -47,6 +47,11 @@ class Component(ComponentBase):
         self.refresh_token = None
         self.access_token = None
 
+        logging.info(self.environment_variables.branch_id)
+        if self.environment_variables.branch_id is not None:
+            raise UserException("This component uses Keboola API to store the statefile. "
+                                "Running is dev branch is disabled")
+
     def run(self):
 
         sandbox = self.configuration.parameters.get(KEY_SANDBOX, False)
@@ -136,7 +141,8 @@ class Component(ComponentBase):
 
         quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=refresh_token,
                                             access_token=access_token, oauth=oauth, sandbox=sandbox)
-        self.process_oauth_tokens(quickbooks_param)
+        if not sandbox:
+            self.process_oauth_tokens(quickbooks_param)
 
         # Fetching reports for each configured endpoint
         for endpoint in endpoints:
@@ -153,7 +159,8 @@ class Component(ComponentBase):
                 logging.info("Not rows in input table detected, the component will process selected endpoints only.")
                 quickbooks_param = QuickbooksClient(company_id=params_company_id, refresh_token=self.refresh_token,
                                                     access_token=self.access_token, oauth=oauth, sandbox=sandbox)
-                self.process_oauth_tokens(quickbooks_param)
+                if not sandbox:
+                    self.process_oauth_tokens(quickbooks_param)
                 for endpoint in _endpoints:
                     self.process_endpoint(endpoint, quickbooks_param, start_date=None, end_date=None,
                                           summarize_column_by=None)
@@ -172,7 +179,8 @@ class Component(ComponentBase):
                     quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=self.refresh_token,
                                                         access_token=self.access_token, oauth=oauth, sandbox=sandbox)
 
-                    self.process_oauth_tokens(quickbooks_param)
+                    if not sandbox:
+                        self.process_oauth_tokens(quickbooks_param)
 
                     # Fetching reports for each configured endpoint
                     for endpoint in endpoints:
@@ -354,7 +362,7 @@ class Component(ComponentBase):
             col_data = obj["ColData"]
             name = col_data[0]["value"]
             value = col_data[1]["value"]
-            save_result(class_name, name, value, obj_type, obj_group, method)
+            save_result(summary_name, name, value, obj_type, obj_group, method)
 
         def process_object(obj, class_name, method):
             obj_type = obj.get("type", "")
@@ -378,29 +386,52 @@ class Component(ComponentBase):
                 for inner_object in inner_objects:
                     process_object(inner_object, class_name, method)
 
-        self.fetch(quickbooks_param=quickbooks_param,
-                   endpoint="CustomQuery",
-                   report_api_bool=True,
-                   start_date=start_date,
-                   end_date=end_date,
-                   query="select * from Class")
-
-        query_result = quickbooks_param.data
-        classes = [item["Name"] for item in query_result.get("Class", []) if item.get("Name")]
-        logging.info(f"Found Classes: {classes}")
-
-        if not classes:
-            logging.warning("API returned no Classes, the component will return total.")
-            classes = ["Total"]
-
+        summary_names = ["Total"]
+        summary_ids = [None]
         params = {}
-        summarize = False
-        if summarize_column_by:
-            summarize = True
-            params["summarize_column_by"] = summarize_column_by
 
-        for class_name in classes:
-            logging.info(f"Processing class: {class_name}")
+        valid_object_summaries = ["Class", "Department", "Total"]
+        if summarize_column_by not in valid_object_summaries:
+            raise UserException(f"The component can process ProfitAndLossQuery report only for"
+                                f" {valid_object_summaries}.")
+
+        if summarize_column_by != "Total":
+            self.fetch(quickbooks_param=quickbooks_param,
+                       endpoint="CustomQuery",
+                       report_api_bool=True,
+                       start_date=start_date,
+                       end_date=end_date,
+                       query=f"select * from {summarize_column_by}")
+
+            query_result = quickbooks_param.data
+
+            summary_names = [c["Name"] for c in query_result.get(summarize_column_by, []) if c.get("Name")]
+            summary_ids = [c["Id"] for c in query_result.get(summarize_column_by, []) if c.get("Id")]
+
+            logging.info(f"Found summary categories: {summary_names}")
+
+            if not summary_names:
+                raise UserException(f"API returned no {summarize_column_by}. Please make sure you have relevant "
+                                    f"objects set up in your Quickbooks account.")
+            else:
+                logging.info(f"Summarize is: {summarize_column_by}")
+                if summarize_column_by:
+                    if summarize_column_by == "Class":
+                        params["summarize_column_by"] = "Classes"
+                    elif summarize_column_by == "Department":
+                        params["summarize_column_by"] = "Departments"
+                    else:
+                        raise UserException(f"Cannot Group by {summarize_column_by}")
+
+        for summary_name, summary_id in zip(summary_names, summary_ids):
+            logging.info(f"Processing summary: {summary_names} with id {summary_ids}")
+
+            if summarize_column_by in ["Class", "Department"]:
+                # filter results by Classes or Departments
+                params[str(summarize_column_by).lower()] = summary_id
+                logging.info(f"Filtering for pnl report is set to: {summarize_column_by}")
+            else:
+                logging.info("Filtering for pnl report is not set.")
 
             self.fetch(quickbooks_param=quickbooks_param,
                        endpoint="ProfitAndLoss",
@@ -413,17 +444,17 @@ class Component(ComponentBase):
             summarize_by = quickbooks_param.data['Header'].get("SummarizeColumnsBy", False)
 
             if not summarize_by:
+                # This part is currently not used since we always group by Class, Department or Total
 
                 report_accrual = quickbooks_param.data['Rows']['Row']
                 report_cash = quickbooks_param.data_2['Rows']['Row']
 
                 for obj in report_cash:
-                    process_object(obj, class_name, method="cash")
+                    process_object(obj, summary_name, method="cash")
                 for obj in report_accrual:
-                    process_object(obj, class_name, method="accrual")
+                    process_object(obj, summary_name, method="accrual")
 
             else:
-
                 report_accrual_data = quickbooks_param.data
                 report_cash_data = quickbooks_param.data_2
 
@@ -432,28 +463,29 @@ class Component(ComponentBase):
                 currency = header['Currency']
 
                 results_cash.append(self.preprocess_dict(report_cash_data,
-                                                         class_name,
+                                                         summary_name,
                                                          summarize_by=summarize_by,
                                                          currency=currency,
                                                          start_date=start_date,
                                                          end_date=end_date))
 
                 results_accrual.append(self.preprocess_dict(report_accrual_data,
-                                                            class_name,
+                                                            summary_name,
                                                             summarize_by=summarize_by,
                                                             currency=currency,
                                                             start_date=start_date,
                                                             end_date=end_date))
 
-        if summarize:
+        """
+        # This is here in case we will ever need to do reports that are not summarized
+        if summarize_by:
             suffix = "_" + str(summarize_by)
         else:
             suffix = ""
+        """
 
-        self.save_pnl_report_to_csv(table_name=f"ProfitAndLossQuery_cash{suffix}.csv", results=results_cash,
-                                    summarize=summarize_by)
-        self.save_pnl_report_to_csv(table_name=f"ProfitAndLossQuery_accrual{suffix}.csv", results=results_accrual,
-                                    summarize=summarize_by)
+        self.save_pnl_report_to_csv(table_name="ProfitAndLossQuery_cash.csv", results=results_cash)
+        self.save_pnl_report_to_csv(table_name="ProfitAndLossQuery_accrual.csv", results=results_accrual)
 
     @staticmethod
     def preprocess_dict(obj, class_name, summarize_by, currency, start_date, end_date):
@@ -516,17 +548,13 @@ class Component(ComponentBase):
 
         return results
 
-    def save_pnl_report_to_csv(self, table_name: str, results: list, summarize: bool):
+    def save_pnl_report_to_csv(self, table_name: str, results: list):
 
         logging.info(f"Saving pnl_report results to {table_name}.")
 
-        if not summarize:
-            pk = ["class", "name", "obj_type", "start_date", "end_date"]
-            columns = ["class", "name", "value", "obj_type", "obj_group", "start_date", "end_date"]
-        else:
-            pk = ["class", "name", "obj_type", "category_id", "start_date", "end_date"]
-            columns = ["class", "name", "value", "obj_type", "obj_group", "category_name", "category_id",
-                       "start_date", "end_date", "summarize_by", "currency"]
+        pk = ["class", "name", "obj_type", "category_id", "start_date", "end_date"]
+        columns = ["class", "name", "value", "obj_type", "obj_group", "category_name", "category_id",
+                   "start_date", "end_date", "summarize_by", "currency"]
 
         table_def = self.create_out_table_definition(table_name, primary_key=pk, incremental=self.incremental)
 
