@@ -36,7 +36,15 @@ This component has two modes available:
        ]
        ```
      - start_date and end_date are strings in the YYYY-MM-DD format.
-     - segment_data_by (optional) If not empty, sends this parameter along with the request and is used for report grouping
+     - segment_data_by - Mandatory parameter, sends this parameter along with the request and is used for report grouping. 
+
+       ```
+       Possible values: [
+         "Class",
+         "Department",
+         "Total"
+       ]
+       ```
 
 ### Application Authorization
 
@@ -59,6 +67,8 @@ This means that if the user encounters the error message "Failed to refresh acce
     In both cases, both the refresh and access tokens are stored in the state file, along with a timestamp of the component run time.
 
 3. During subsequent component runs, the component checks if there is data present in the state file. If data is found, it compares the timestamp from oAuth with the timestamp from the state file. It will use the tokens with the freshest timestamp. Once the component finishes, the tokens are stored in the state file again, along with a new timestamp.
+
+4. Additional measure that saves new token into statefile during the client initialization was added in order to prevent the component losing the refresh token. This means that running the component is disabled in dev branches.
 
 By following these steps, the system ensures the proper handling of authorization for API requests.
 
