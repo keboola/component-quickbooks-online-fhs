@@ -392,7 +392,8 @@ class Component(ComponentBase):
 
         valid_object_summaries = ["Class", "Department", "Total"]
         if summarize_column_by not in valid_object_summaries:
-            raise UserException(f"The component can process ProfitAndLossQuery only for {valid_object_summaries}.")
+            raise UserException(f"The component can process ProfitAndLossQuery report only for"
+                                f" {valid_object_summaries}.")
 
         if summarize_column_by != "Total":
             self.fetch(quickbooks_param=quickbooks_param,
