@@ -36,7 +36,7 @@ This component has two modes available:
        ]
        ```
      - start_date and end_date are strings in the YYYY-MM-DD format.
-     - segment_data_by - Mandatory parameter, sends this parameter along with the request and is used for report grouping. 
+     - segment_data_by - Mandatory column, sends this parameter along with the request and is used for report grouping. 
 
        ```
        Possible values: [
