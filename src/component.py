@@ -413,6 +413,9 @@ class Component(ComponentBase):
 
             query_result = quickbooks_param.data
 
+            logging.info(query_result)
+            exit()
+
             summary_names = [c["Name"] for c in query_result.get(summarize_column_by, []) if c.get("Name")]
             summary_ids = [c["Id"] for c in query_result.get(summarize_column_by, []) if c.get("Id")]
 
