@@ -523,8 +523,8 @@ class Component(ComponentBase):
 
         def process_coldata(obj, obj_type, obj_group):
             col_data = obj["ColData"]
-            category_name = col_data[0]["value"]
-            category_id = col_data[0]["id"]
+            category_name = col_data[0].get("value", "")
+            category_id = col_data[0].get("id", "")
             for name, val in zip(group_by, col_data):
                 if name:
                     save_result(class_name, name, val['value'], obj_type, obj_group, category_name, category_id)
