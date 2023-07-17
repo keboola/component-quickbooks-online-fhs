@@ -52,11 +52,13 @@ class Component(ComponentBase):
 
         if self.environment_variables.branch_id is not ALLOWED_BRANCHES:
             raise UserException(f"This component uses Keboola API to store the statefile. "
-                                f"Running is allowed only in branches {ALLOWED_BRANCHES}.")
+                                f"Running is allowed only in branches {ALLOWED_BRANCHES}, "
+                                f"detected branch: {self.environment_variables.branch_id}")
 
         if self.environment_variables.project_id is not ALLOWED_PROJECTS:
             raise UserException(f"This component uses Keboola API to store the statefile. "
-                                f"Running is allowed only in projects {ALLOWED_PROJECTS}.")
+                                f"Running is allowed only in projects {ALLOWED_PROJECTS}, "
+                                f"detected project_id: {self.environment_variables.project_id}")
 
     def run(self):
 
