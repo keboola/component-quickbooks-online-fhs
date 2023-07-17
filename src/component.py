@@ -50,6 +50,10 @@ class Component(ComponentBase):
         self.refresh_token = None
         self.access_token = None
 
+        print(type(self.environment_variables.branch_id))
+        print(type(self.environment_variables.project_id))
+        exit()
+
         if self.environment_variables.branch_id not in ALLOWED_BRANCHES:
             raise UserException(f"This component uses Keboola API to store the statefile. "
                                 f"Running is allowed only in branches {ALLOWED_BRANCHES}, "
