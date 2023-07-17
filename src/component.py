@@ -47,10 +47,9 @@ class Component(ComponentBase):
         self.refresh_token = None
         self.access_token = None
 
-        logging.info(self.environment_variables.branch_id)
         if self.environment_variables.branch_id is not None:
-            raise UserException("This component uses Keboola API to store the statefile. "
-                                "Running is dev branch is disabled")
+            raise UserException(f"This component uses Keboola API to store the statefile. "
+                                f"Running is dev branch {self.environment_variables.branch_id} is disabled.")
 
     def run(self):
 
