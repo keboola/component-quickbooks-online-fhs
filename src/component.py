@@ -38,6 +38,9 @@ REQUIRED_PARAMETERS = [KEY_COMPANY_ID, KEY_ENDPOINTS, KEY_GROUP_DESTINATION]
 # QuickBooks Parameters
 BASE_URL = "https://quickbooks.api.intuit.com"
 
+ALLOWED_BRANCHES = [683762]
+ALLOWED_PROJECTS = [9525]
+
 
 class Component(ComponentBase):
 
@@ -47,9 +50,13 @@ class Component(ComponentBase):
         self.refresh_token = None
         self.access_token = None
 
-        if self.environment_variables.branch_id != 683762:
-            raise UserException("This component uses Keboola API to store the statefile running in dev branches "
-                                "is disabled.")
+        if self.environment_variables.branch_id is not ALLOWED_BRANCHES:
+            raise UserException(f"This component uses Keboola API to store the statefile. "
+                                f"Running is allowed only in branches {ALLOWED_BRANCHES}.")
+
+        if self.environment_variables.project_id is not ALLOWED_PROJECTS:
+            raise UserException(f"This component uses Keboola API to store the statefile. "
+                                f"Running is allowed only in projects {ALLOWED_PROJECTS}.")
 
     def run(self):
 
