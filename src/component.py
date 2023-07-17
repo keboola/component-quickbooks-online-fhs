@@ -38,8 +38,8 @@ REQUIRED_PARAMETERS = [KEY_COMPANY_ID, KEY_ENDPOINTS, KEY_GROUP_DESTINATION]
 # QuickBooks Parameters
 BASE_URL = "https://quickbooks.api.intuit.com"
 
-ALLOWED_BRANCHES = [683762]
-ALLOWED_PROJECTS = [9525]
+ALLOWED_BRANCHES = ["683762"]
+ALLOWED_PROJECTS = ["9525"]
 
 
 class Component(ComponentBase):
@@ -49,10 +49,6 @@ class Component(ComponentBase):
         self.incremental = None
         self.refresh_token = None
         self.access_token = None
-
-        print(type(self.environment_variables.branch_id))
-        print(type(self.environment_variables.project_id))
-        exit()
 
         if self.environment_variables.branch_id not in ALLOWED_BRANCHES:
             raise UserException(f"This component uses Keboola API to store the statefile. "
