@@ -209,7 +209,7 @@ class Mapping:
         """
 
         file = DEFAULT_FILE_DESTINATION+str(file_name)+".csv.manifest"
-        logging.info("Manifest output: {0}".format(file))
+        logging.debug("Manifest output: {0}".format(file))
 
         manifest_template = {
             "incremental": False,
@@ -246,7 +246,7 @@ class Mapping:
             out_df = pd.DataFrame(out_file[file])
             file_dest = DEFAULT_FILE_DESTINATION+file+".csv"
             out_df.to_csv(file_dest, index=False)
-            logging.info("Table output: {0}...".format(file_dest))
+            logging.debug("Table output: {0}...".format(file_dest))
 
             # Outputting manifest file if incremental
             out_file_pk = self.out_file_pk  # noqa
