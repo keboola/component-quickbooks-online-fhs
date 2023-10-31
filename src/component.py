@@ -142,7 +142,7 @@ class Component(ComponentBase):
             self.incremental = True
         else:
             self.incremental = False
-        logging.info(f"Load type incremental set to: {self.incremental}")
+        logging.debug(f"Load type incremental set to: {self.incremental}")
 
         summarize_column_by = params.get(KEY_SUMMARIZE_COLUMN_BY) if params.get(
             KEY_SUMMARIZE_COLUMN_BY) else None
@@ -176,7 +176,7 @@ class Component(ComponentBase):
                 self.refresh_token, self.access_token = quickbooks_param.refresh_token, quickbooks_param.access_token
             else:
                 for row in rows:
-                    logging.info(f"Processing row: {row}")
+                    logging.debug(f"Processing row: {row}")
                     company_id = row["PK"]
                     endpoints = _endpoints + [row["report"]]
                     start_date = row["start_date"]
@@ -209,7 +209,7 @@ class Component(ComponentBase):
             self.access_token = new_access_token
 
     def save_new_oauth_tokens(self, refresh_token: str, access_token: str) -> None:
-        logging.info("Saving new tokens to state using Keboola API.")
+        logging.debug("Saving new tokens to state using Keboola API.")
 
         encrypted_refresh_token = self.encrypt(refresh_token)
         encrypted_access_token = self.encrypt(access_token)
@@ -298,13 +298,13 @@ class Component(ComponentBase):
         self.fetch(quickbooks_param=quickbooks_param, endpoint=endpoint, report_api_bool=report_api_bool,
                    start_date=start_date, end_date=end_date)
 
-        logging.info("Parsing API results...")
+        logging.debug("Parsing API results...")
         input_data = quickbooks_param.data
 
         if len(input_data) == 0:
             pass
         else:
-            logging.info(
+            logging.debug(
                 "Report API Template Enable: {0}".format(report_api_bool))
             if report_api_bool:
                 if endpoint == "CustomQuery":
@@ -337,9 +337,9 @@ class Component(ComponentBase):
             if ts_statefile > ts_oauth:
                 refresh_token = statefile["tokens"].get("#refresh_token")
                 access_token = statefile["tokens"].get("#access_token")
-                logging.info("Loaded tokens from statefile.")
+                logging.debug("Loaded tokens from statefile.")
             else:
-                logging.info("Using tokens from oAuth.")
+                logging.debug("Using tokens from oAuth.")
         else:
             logging.warning("No timestamp found in statefile. Using oAuth tokens.")
 
@@ -416,13 +416,13 @@ class Component(ComponentBase):
             summary_names = [c["Name"] for c in query_result.get(summarize_column_by, []) if c.get("Name")]
             summary_ids = [c["Id"] for c in query_result.get(summarize_column_by, []) if c.get("Id")]
 
-            logging.info(f"Found summary categories: {summary_names}")
+            logging.debug(f"Found summary categories: {summary_names}")
 
             if not summary_names:
                 raise UserException(f"API returned no {summarize_column_by}. Please make sure you have relevant "
                                     f"objects set up in your Quickbooks account.")
             else:
-                logging.info(f"Summarize is: {summarize_column_by}")
+                logging.debug(f"Summarize is: {summarize_column_by}")
                 if summarize_column_by:
                     if summarize_column_by == "Class":
                         params["summarize_column_by"] = "Classes"
@@ -432,14 +432,14 @@ class Component(ComponentBase):
                         raise UserException(f"Cannot Group by {summarize_column_by}")
 
         for summary_name, summary_id in zip(summary_names, summary_ids):
-            logging.info(f"Processing summary: {summary_names} with id {summary_ids}")
+            logging.debug(f"Processing summary: {summary_names} with id {summary_ids}")
 
             if summarize_column_by in ["Class", "Department"]:
                 # filter results by Classes or Departments
                 params[str(summarize_column_by).lower()] = summary_id
-                logging.info(f"Filtering for pnl report is set to: {summarize_column_by}")
+                logging.debug(f"Filtering for pnl report is set to: {summarize_column_by}")
             else:
-                logging.info("Filtering for pnl report is not set.")
+                logging.debug("Filtering for pnl report is not set.")
 
             self.fetch(quickbooks_param=quickbooks_param,
                        endpoint="ProfitAndLoss",
@@ -558,7 +558,7 @@ class Component(ComponentBase):
 
     def save_pnl_report_to_csv(self, table_name: str, results: list):
 
-        logging.info(f"Saving pnl_report results to {table_name}.")
+        logging.debug(f"Saving pnl_report results to {table_name}.")
 
         pk = ["class", "name", "obj_type", "category_id", "start_date", "end_date"]
         columns = ["class", "name", "value", "obj_type", "obj_group", "category_name", "category_id",
@@ -579,7 +579,7 @@ class Component(ComponentBase):
 
     @staticmethod
     def fetch(quickbooks_param, endpoint, report_api_bool, start_date=None, end_date=None, query="", params=None):
-        logging.info(f"Fetching endpoint {endpoint} with date rage: {start_date} - {end_date}")
+        logging.debug(f"Fetching endpoint {endpoint} with date rage: {start_date} - {end_date}")
         try:
             quickbooks_param.fetch(
                 endpoint=endpoint,
