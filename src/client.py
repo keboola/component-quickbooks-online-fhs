@@ -38,7 +38,6 @@ class QuickbooksClient:
             self.base_url = "https://quickbooks.api.intuit.com/v3/company"
         else:
             self.base_url = "https://sandbox-quickbooks.api.intuit.com/v3/company"
-            logging.info("Running client in Sandbox mode.")
 
         # Parameters for request
         self.access_token = access_token
@@ -85,7 +84,7 @@ class QuickbooksClient:
             if self.endpoint == "CustomQuery":
                 if query == '':
                     raise QuickBooksClientException("Please enter query for CustomQuery. Exit...")
-                logging.info("Input Custom Query: {0}".format(self.start_date))
+                logging.debug("Input Custom Query: {0}".format(self.start_date))
                 self.custom_request(input_query=query)
             else:
                 if not (self.start_date and self.end_date):
@@ -143,7 +142,7 @@ class QuickbooksClient:
         data = self._request(count_url)
 
         total_counts = data["QueryResponse"]["totalCount"]
-        logging.info("Total Number of Records for {0}: {1}".format(
+        logging.debug("Total Number of Records for {0}: {1}".format(
             endpoint, total_counts))
 
         return total_counts
@@ -219,7 +218,7 @@ class QuickbooksClient:
                 query = "SELECT * FROM {0} STARTPOSITION {1} MAXRESULTS {2}".format(
                     self.endpoint, self.startposition, self.maxresults)
 
-            logging.info("Request Query: {0}".format(query))
+            logging.debug("Request Query: {0}".format(query))
             encoded_query = self.url_encode(query)
             url = "{0}/{1}/query?query={2}".format(
                 self.base_url, self.company_id, encoded_query)
@@ -240,7 +239,7 @@ class QuickbooksClient:
             self.startposition += self.maxresults
             num_of_run += 1
 
-        logging.info("Number of Requests: {0}".format(num_of_run))
+        logging.debug("Number of Requests: {0}".format(num_of_run))
 
     def custom_request(self, input_query):
         """
@@ -250,7 +249,7 @@ class QuickbooksClient:
         # Query Parameters
         query = "{0}".format(input_query)
 
-        logging.info("Request Query: {0}".format(query))
+        logging.debug("Request Query: {0}".format(query))
         encoded_query = self.url_encode(query)
         url = "{0}/{1}/query?query={2}".format(
             self.base_url, self.company_id, encoded_query)
