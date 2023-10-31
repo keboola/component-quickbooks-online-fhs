@@ -166,7 +166,7 @@ class QuickbooksClient:
                 "Authorization": "Bearer " + self.access_token,
                 "Accept": "application/json"
             }
-            logging.info(f'Requesting: {url} with params: {params}')
+            logging.debug(f'Requesting: {url} with params: {params}')
             data = requesting.get(url, headers=headers, params=params)
 
             try:
