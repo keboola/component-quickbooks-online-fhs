@@ -579,7 +579,7 @@ class Component(ComponentBase):
 
     @staticmethod
     def fetch(quickbooks_param, endpoint, report_api_bool, start_date=None, end_date=None, query="", params=None):
-        logging.info(f"Fetching endpoint {endpoint} with date rage: {start_date} - {end_date}")
+        logging.debug(f"Fetching endpoint {endpoint} with date rage: {start_date} - {end_date}")
         try:
             quickbooks_param.fetch(
                 endpoint=endpoint,
