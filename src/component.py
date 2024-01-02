@@ -225,11 +225,16 @@ class Component(ComponentBase):
                      "#refresh_token": encrypted_refresh_token,
                      "#access_token": encrypted_access_token}
             }}
-        self.update_config_state(region="CURRENT_STACK",
-                                 component_id=self.environment_variables.component_id,
-                                 configurationId=self.environment_variables.config_id,
-                                 state=new_state,
-                                 branch_id=self.environment_variables.branch_id)
+        try:
+            self.update_config_state(region="CURRENT_STACK",
+                                     component_id=self.environment_variables.component_id,
+                                     configurationId=self.environment_variables.config_id,
+                                     state=new_state,
+                                     branch_id=self.environment_variables.branch_id)
+        except requests.exceptions.RequestException:
+            logging.warning("Storage API (update config state)"
+                            "is unavailable. Skipping token save at the beginning of the run.")
+            return
 
     @backoff.on_exception(backoff.expo, requests.exceptions.RequestException, max_tries=5)
     def encrypt(self, token: str) -> str:
@@ -262,17 +267,7 @@ class Component(ComponentBase):
         response = requests.put(url,
                                 data=parameters,
                                 headers=headers)
-        try:
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Unable to update component state using Keboola Storage API: {e}")
-            self.write_state_file({
-                "tokens":
-                    {"ts": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
-                     "#refresh_token": self.refresh_token,
-                     "#access_token": self.access_token}
-            })
-            exit(0)
+        response.raise_for_status()
 
     def process_endpoint(self, endpoint, quickbooks_param, start_date, end_date, summarize_column_by):
 
