@@ -58,7 +58,6 @@ class QuickbooksClient:
         except Exception as e:
             raise QuickBooksClientException(e) from e
 
-        self.access_token_refreshed = False  # this is here in case the token would change during the component run
         return self.refresh_token, self.access_token
 
     def fetch(self, endpoint, report_api_bool, start_date, end_date, query="", params=None):
