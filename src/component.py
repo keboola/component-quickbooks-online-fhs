@@ -38,8 +38,8 @@ REQUIRED_PARAMETERS = [KEY_COMPANY_ID, KEY_ENDPOINTS, KEY_GROUP_DESTINATION]
 # QuickBooks Parameters
 BASE_URL = "https://quickbooks.api.intuit.com"
 
-ALLOWED_BRANCHES = ["683762"]
-ALLOWED_PROJECTS = ["9525"]
+ALLOWED_BRANCHES = ["683762", "510379"]
+ALLOWED_PROJECTS = ["9525", "9382"]
 
 
 class Component(ComponentBase):
