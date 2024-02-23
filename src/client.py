@@ -174,6 +174,7 @@ class QuickbooksClient:
             data = requesting.get(url, headers=headers, params=params)
 
             try:
+                logging.debug(f"Response: {data.text}")
                 results = json.loads(data.text)
 
             except json.decoder.JSONDecodeError as e:
@@ -229,7 +230,6 @@ class QuickbooksClient:
 
             # Requests and concatenating results into class's data variable
             results = self._request(url)
-            logging.debug(f"Results: {results}")
 
             # If API returns error, raise exception and terminate application
             if "fault" in results or "Fault" in results:
