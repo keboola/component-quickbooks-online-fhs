@@ -158,6 +158,11 @@ class QuickbooksClient:
         """
         Handles Request
         """
+        # add minorversion to params
+        if not params:
+            params = {}
+        params["minorversion"] = 70
+
         results = None
         request_success = False
         while not request_success:
@@ -224,6 +229,7 @@ class QuickbooksClient:
 
             # Requests and concatenating results into class's data variable
             results = self._request(url)
+            logging.debug(f"Results: {results}")
 
             # If API returns error, raise exception and terminate application
             if "fault" in results or "Fault" in results:
