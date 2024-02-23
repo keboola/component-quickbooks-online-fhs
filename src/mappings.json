@@ -30,6 +30,12 @@
                 "destination": "Classification"
             }
         },
+        "AcctNum": {
+            "type": "column",
+            "mapping": {
+                "destination": "AcctNum"
+            }
+        },
         "AccountType": {
             "type": "column",
             "mapping": {
