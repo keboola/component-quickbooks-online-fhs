@@ -175,7 +175,7 @@ class QuickbooksClient:
 
             try:
                 logging.debug(f"Response: {data.text}")
-                results = json.loads(data.text)
+                results = data.json()
 
             except json.decoder.JSONDecodeError as e:
                 raise QuickBooksClientException(f"Cannot decode response: {data.text}") from e
