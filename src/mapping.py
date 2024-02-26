@@ -245,8 +245,6 @@ class Mapping:
 
             out_df = pd.DataFrame(out_file[file])
             file_dest = DEFAULT_FILE_DESTINATION+file+".csv"
-            print(file_dest)
-            exit()
             out_df.to_csv(file_dest, index=False)
             logging.debug("Table output: {0}...".format(file_dest))
 
