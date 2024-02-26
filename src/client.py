@@ -70,7 +70,7 @@ class QuickbooksClient:
 
         # Pagination Parameters
         self.startposition = 1
-        self.maxresults = 100
+        self.maxresults = 1000
         self.start_date = start_date
         self.end_date = end_date
 
@@ -174,8 +174,8 @@ class QuickbooksClient:
             data = requesting.get(url, headers=headers, params=params)
 
             try:
-                logging.debug(f"Response: {data.text}")
                 results = data.json()
+                logging.debug(f"Response: {results}")
 
             except json.decoder.JSONDecodeError as e:
                 raise QuickBooksClientException(f"Cannot decode response: {data.text}") from e
