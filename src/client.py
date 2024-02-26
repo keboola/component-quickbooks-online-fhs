@@ -70,7 +70,7 @@ class QuickbooksClient:
 
         # Pagination Parameters
         self.startposition = 1
-        self.maxresults = 1000
+        self.maxresults = 100
         self.start_date = start_date
         self.end_date = end_date
 
