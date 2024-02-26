@@ -1709,7 +1709,7 @@
                         "DepartmentRef.value": {
                             "type": "column",
                             "mapping": {
-                                "destination": "Deparement_ID"
+                                "destination": "Department_ID"
                             }
                         },
                         "DepartmentRef.name": {
