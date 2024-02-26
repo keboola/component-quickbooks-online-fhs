@@ -164,7 +164,7 @@ class Component(ComponentBase):
             reader = csv.DictReader(csvfile)
             rows = list(reader)  # not memory efficient, but we are working with small input table
             if len(rows) == 0:
-                logging.info("Not rows in input table detected, the component will process selected endpoints only.")
+                logging.info("No rows in input table detected, the component will process selected endpoints only.")
                 quickbooks_param = QuickbooksClient(company_id=params_company_id, refresh_token=self.refresh_token,
                                                     access_token=self.access_token, oauth=oauth, sandbox=sandbox)
                 if not sandbox:
@@ -172,13 +172,16 @@ class Component(ComponentBase):
                 for endpoint in _endpoints:
                     self.process_endpoint(endpoint, quickbooks_param, start_date=None, end_date=None,
                                           summarize_column_by=None)
+                    self.refresh_token, self.access_token = (
+                        quickbooks_param.refresh_token,
+                        quickbooks_param.access_token
+                    )
 
-                self.refresh_token, self.access_token = quickbooks_param.refresh_token, quickbooks_param.access_token
             else:
                 for row in rows:
                     logging.debug(f"Processing row: {row}")
                     company_id = row["PK"]
-                    endpoints = _endpoints + [row["report"]]
+                    endpoint = row["report"]
                     start_date = row["start_date"]
                     end_date = row["end_date"]
                     self.incremental = True
@@ -190,12 +193,24 @@ class Component(ComponentBase):
                     if not sandbox:
                         self.process_oauth_tokens(quickbooks_param)
 
-                    # Fetching reports for each configured endpoint
-                    for endpoint in endpoints:
-                        self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
-
-                    self.refresh_token, self.access_token = quickbooks_param.refresh_token, \
+                    # Process endpoints defined in the input table
+                    self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
+                    self.refresh_token, self.access_token = (
+                        quickbooks_param.refresh_token,
                         quickbooks_param.access_token
+                    )
+
+                # Also process endpoints from configuration
+                for endpoint in _endpoints:
+                    self.process_endpoint(endpoint,
+                                          quickbooks_param,
+                                          start_date=None,
+                                          end_date=None,
+                                          summarize_column_by=None)
+                    self.refresh_token, self.access_token = (
+                        quickbooks_param.refresh_token,
+                        quickbooks_param.access_token
+                    )
 
     def process_oauth_tokens(self, client) -> None:
         """Uses Quickbooks client to get new tokens and saves them using API if they have changed since the last run."""
@@ -270,7 +285,6 @@ class Component(ComponentBase):
         response.raise_for_status()
 
     def process_endpoint(self, endpoint, quickbooks_param, start_date, end_date, summarize_column_by):
-
         if endpoint == "ProfitAndLossQuery":
             self.process_pnl_report(quickbooks_param=quickbooks_param, start_date=start_date, end_date=end_date,
                                     summarize_column_by=summarize_column_by)
