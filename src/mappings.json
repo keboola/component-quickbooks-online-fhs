@@ -30,6 +30,12 @@
                 "destination": "Classification"
             }
         },
+        "AcctNum": {
+            "type": "column",
+            "mapping": {
+                "destination": "AcctNum"
+            }
+        },
         "AccountType": {
             "type": "column",
             "mapping": {
@@ -1627,8 +1633,7 @@
                 "Id": {
                     "type": "column",
                     "mapping": {
-                        "destination": "ID",
-                        "primaryKey": true
+                        "destination": "ID"
                     }
                 },
                 "Description": {
@@ -1680,8 +1685,7 @@
                         "Entity.EntityRef.value": {
                             "type": "column",
                             "mapping": {
-                                "destination": "Entity_ID",
-                                "primaryKey": true
+                                "destination": "Entity_ID"
                             }
                         },
                         "Entity.EntityRef.name": {
@@ -1693,8 +1697,7 @@
                         "ClassRef.value": {
                             "type": "column",
                             "mapping": {
-                                "destination": "Class_ID",
-                                "primaryKey": true
+                                "destination": "Class_ID"
                             }
                         },
                         "ClassRef.name": {
@@ -1706,8 +1709,7 @@
                         "DepartmentRef.value": {
                             "type": "column",
                             "mapping": {
-                                "destination": "Deparement_ID",
-                                "primaryKey": true
+                                "destination": "Department_ID"
                             }
                         },
                         "DepartmentRef.name": {

@@ -158,6 +158,11 @@ class QuickbooksClient:
         """
         Handles Request
         """
+        # add minorversion to params
+        if not params:
+            params = {}
+        params["minorversion"] = 70
+
         results = None
         request_success = False
         while not request_success:
@@ -169,7 +174,8 @@ class QuickbooksClient:
             data = requesting.get(url, headers=headers, params=params)
 
             try:
-                results = json.loads(data.text)
+                results = data.json()
+                logging.debug(f"Response: {results}")
 
             except json.decoder.JSONDecodeError as e:
                 raise QuickBooksClientException(f"Cannot decode response: {data.text}") from e
