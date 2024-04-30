@@ -203,7 +203,7 @@ class Mapping:
                     table_name=mapping[column]["destination"], mapping=mapping[column]["tableMapping"])
 
     @staticmethod
-    def produce_manifest(file_name, primary_key):
+    def produce_manifest(file_name, primary_key, columns):
         """
         Dummy function to return header per file type.
         """
@@ -221,6 +221,7 @@ class Mapping:
 
         manifest = manifest_template
         manifest["primary_key"] = primary_key
+        manifest["columns"] = columns
 
         try:
             with open(file, 'w') as file_out:
@@ -245,9 +246,9 @@ class Mapping:
 
             out_df = pd.DataFrame(out_file[file])
             file_dest = DEFAULT_FILE_DESTINATION+file+".csv"
-            out_df.to_csv(file_dest, index=False)
+            out_df.to_csv(file_dest, index=False, mode='a', header=False)
             logging.debug("Table output: {0}...".format(file_dest))
 
             # Outputting manifest file if incremental
             out_file_pk = self.out_file_pk  # noqa
-            self.produce_manifest(file, self.out_file_pk[file])
+            self.produce_manifest(file, self.out_file_pk[file], out_df.columns.values.tolist())

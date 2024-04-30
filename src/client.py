@@ -8,6 +8,8 @@ from typing import Tuple
 from keboola.component.base import ComponentBase  # noqa
 import backoff
 from requests.exceptions import HTTPError
+from memory_profiler import memory_usage
+from mapping import Mapping
 
 requesting = requests.Session()
 
@@ -239,6 +241,12 @@ class QuickbooksClient:
 
             # Concatenate with exist extracted data
             self.data = self.data + data
+
+            if memory_usage()[0] > 300:
+                logging.info(f"Writing {len(self.data)} rows from {self.endpoint} endpoint to output file.")
+                Mapping(endpoint=self.endpoint, data=self.data)
+
+                self.data = []
 
             # Handling pagination parameters
             self.startposition += self.maxresults
