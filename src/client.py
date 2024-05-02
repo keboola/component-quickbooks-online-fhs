@@ -241,7 +241,7 @@ class QuickbooksClient:
             # Concatenate with exist extracted data
             self.data = self.data + data
 
-            if len(self.data) > 10_000:
+            if len(self.data) > 5_000:
                 logging.info(f"Writing {len(self.data)} rows from {self.endpoint} endpoint to output file.")
                 Mapping(endpoint=self.endpoint, data=self.data)
 
