@@ -9,6 +9,7 @@ from keboola.component.base import ComponentBase  # noqa
 import backoff
 from requests.exceptions import HTTPError
 from mapping import Mapping
+from ratelimit import limits, sleep_and_retry
 
 requesting = requests.Session()
 
@@ -155,6 +156,9 @@ class QuickbooksClient:
         out = url_parse.quote_plus(query)
         return out
 
+    # API rate limits: https://developer.intuit.com/app/developer/qbo/docs/learn/rest-api-features#limits-and-throttles
+    @sleep_and_retry
+    @limits(calls=400, period=60)
     def _request(self, url, params=None):
         """
         Handles Request
