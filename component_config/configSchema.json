@@ -10,7 +10,7 @@
       "title": "Company ID",
       "default": "",
       "minLength": 1,
-      "description": "Can be found under QuickBooks account's \"Account and Setting\". Does not contain any spaces.",
+      "description": "Can be found under the QuickBooks account's \"Account and Settings.\" It does not contain any spaces.",
       "propertyOrder": 1
     },
     "endpoints": {
@@ -46,7 +46,7 @@
       "options": {
         "tags": true
       },
-      "description": "Select which endpoints you want to process.",
+      "description": "Select the endpoints you want to process.",
       "propertyOrder": 2
     },
     "destination": {
@@ -65,14 +65,14 @@
           ],
           "options": {
             "enum_titles": [
-              "Full Load",
-              "Incremental Load"
+              "Full load",
+              "Incremental load"
             ]
           },
           "default": "full_load",
           "format": "checkbox",
-          "title": "Load Type",
-          "description": "If Full load is used, the destination table will be overwritten every run. If incremental load is used, data will be upserted into the destination table. Tables with a primary key will have rows updated, tables without a primary key will have rows appended.",
+          "title": "Load type",
+          "description": "If full load is used, the destination table will be overwritten every run. If incremental load is used, data will be upserted into the destination table. Tables with a primary key will have rows updated, tables without a primary key will have rows appended.",
           "propertyOrder": 1
         }
       }
