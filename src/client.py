@@ -162,7 +162,7 @@ class QuickbooksClient:
         # add minorversion to params
         if not params:
             params = {}
-        params["minorversion"] = 70
+        params["minorversion"] = 75
 
         results = None
         request_success = False
