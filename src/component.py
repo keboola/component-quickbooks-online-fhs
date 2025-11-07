@@ -17,16 +17,16 @@ from keboola.component.exceptions import UserException  # noqa
 URL_SUFFIX = os.environ.get("KBC_STACKID", "connection.keboola.com").replace("connection.", "")
 
 # configuration variables
-KEY_COMPANY_ID = 'companyid'
-KEY_ENDPOINTS = 'endpoints'
-KEY_REPORTS = 'reports'
-GROUP_DATE_SETTINGS = 'date_settings'
-KEY_START_DATE = 'start_date'
-KEY_END_DATE = 'end_date'
-KEY_GROUP_DESTINATION = 'destination'
-KEY_LOAD_TYPE = 'load_type'
-KEY_SUMMARIZE_COLUMN_BY = 'summarize_column_by'
-KEY_SANDBOX = 'sandbox'
+KEY_COMPANY_ID = "companyid"
+KEY_ENDPOINTS = "endpoints"
+KEY_REPORTS = "reports"
+GROUP_DATE_SETTINGS = "date_settings"
+KEY_START_DATE = "start_date"
+KEY_END_DATE = "end_date"
+KEY_GROUP_DESTINATION = "destination"
+KEY_LOAD_TYPE = "load_type"
+KEY_SUMMARIZE_COLUMN_BY = "summarize_column_by"
+KEY_SANDBOX = "sandbox"
 
 # list of mandatory parameters => if some is missing,
 # component will fail with readable message on initialization.
@@ -40,7 +40,6 @@ ALLOWED_PROJECTS = ["9525", "9382"]
 
 
 class Component(ComponentBase):
-
     def __init__(self):
         super().__init__()
         self.incremental = None
@@ -48,17 +47,20 @@ class Component(ComponentBase):
         self.access_token = None
 
         if self.environment_variables.branch_id not in ALLOWED_BRANCHES:
-            raise UserException(f"This component uses Keboola API to store the statefile. "
-                                f"Running is allowed only in branches {ALLOWED_BRANCHES}, "
-                                f"detected branch: {self.environment_variables.branch_id}")
+            raise UserException(
+                f"This component uses Keboola API to store the statefile. "
+                f"Running is allowed only in branches {ALLOWED_BRANCHES}, "
+                f"detected branch: {self.environment_variables.branch_id}"
+            )
 
         if self.environment_variables.project_id not in ALLOWED_PROJECTS:
-            raise UserException(f"This component uses Keboola API to store the statefile. "
-                                f"Running is allowed only in projects {ALLOWED_PROJECTS}, "
-                                f"detected project_id: {self.environment_variables.project_id}")
+            raise UserException(
+                f"This component uses Keboola API to store the statefile. "
+                f"Running is allowed only in projects {ALLOWED_PROJECTS}, "
+                f"detected project_id: {self.environment_variables.project_id}"
+            )
 
     def run(self):
-
         sandbox = self.configuration.parameters.get(KEY_SANDBOX, False)
         start_date = None
         end_date = None
@@ -86,28 +88,33 @@ class Component(ComponentBase):
             except QuickBooksClientException as e:
                 raise UserException(f"Component failed during run: {e}") from e
 
-        self.write_state_file({
-            "tokens":
-                {"ts": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
-                 "#refresh_token": self.refresh_token,
-                 "#access_token": self.access_token}
-        })
+        self.write_state_file(
+            {
+                "tokens": {
+                    "ts": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                    "#refresh_token": self.refresh_token,
+                    "#access_token": self.access_token,
+                }
+            }
+        )
 
     @staticmethod
     def validate_company_id(company_id: str) -> None:
-        if ' ' in company_id or '.' in company_id:
+        if " " in company_id or "." in company_id:
             raise UserException("The company_id parameter should not contain any spaces or dots.")
 
     def validate_inputs(self, cfg_table, params_company_id: str) -> None:
         self.validate_company_id(params_company_id)
-        with open(cfg_table.full_path, 'r') as csvfile:
+        with open(cfg_table.full_path, "r") as csvfile:
             reader = csv.DictReader(csvfile)
             rows = list(reader)
             for row in rows:
                 pk = row["PK"]
                 if pk != params_company_id:
-                    raise UserException(f"company_id from params: {params_company_id} does not match "
-                                        f"with company_id provided in input table: {pk}.")
+                    raise UserException(
+                        f"company_id from params: {params_company_id} does not match "
+                        f"with company_id provided in input table: {pk}."
+                    )
 
     def no_input_table_run(self, start_date, end_date, refresh_token, access_token, oauth, sandbox):
         logging.info("No input table detected. The component will run with parameters set in config.")
@@ -128,7 +135,7 @@ class Component(ComponentBase):
         start_date = self.process_date(start_date)
         end_date = self.process_date(end_date)
 
-        logging.info(f'Processing Company ID: {company_id}')
+        logging.info(f"Processing Company ID: {company_id}")
 
         if params.get("sandbox"):
             sandbox = True
@@ -141,11 +148,11 @@ class Component(ComponentBase):
             self.incremental = False
         logging.debug(f"Load type incremental set to: {self.incremental}")
 
-        summarize_column_by = params.get(KEY_SUMMARIZE_COLUMN_BY) if params.get(
-            KEY_SUMMARIZE_COLUMN_BY) else None
+        summarize_column_by = params.get(KEY_SUMMARIZE_COLUMN_BY) if params.get(KEY_SUMMARIZE_COLUMN_BY) else None
 
-        quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=refresh_token,
-                                            access_token=access_token, oauth=oauth, sandbox=sandbox)
+        quickbooks_param = QuickbooksClient(
+            company_id=company_id, refresh_token=refresh_token, access_token=access_token, oauth=oauth, sandbox=sandbox
+        )
         if not sandbox:
             self.process_oauth_tokens(quickbooks_param)
 
@@ -157,21 +164,27 @@ class Component(ComponentBase):
 
     def input_table_run(self, cfg_table, oauth, sandbox, params_company_id: str):
         _endpoints = self.configuration.parameters.get("endpoints", [])
-        with open(cfg_table.full_path, 'r') as csvfile:
+        with open(cfg_table.full_path, "r") as csvfile:
             reader = csv.DictReader(csvfile)
             rows = list(reader)  # not memory efficient, but we are working with small input table
             if len(rows) == 0:
                 logging.info("No rows in input table detected, the component will process selected endpoints only.")
-                quickbooks_param = QuickbooksClient(company_id=params_company_id, refresh_token=self.refresh_token,
-                                                    access_token=self.access_token, oauth=oauth, sandbox=sandbox)
+                quickbooks_param = QuickbooksClient(
+                    company_id=params_company_id,
+                    refresh_token=self.refresh_token,
+                    access_token=self.access_token,
+                    oauth=oauth,
+                    sandbox=sandbox,
+                )
                 if not sandbox:
                     self.process_oauth_tokens(quickbooks_param)
                 for endpoint in _endpoints:
-                    self.process_endpoint(endpoint, quickbooks_param, start_date=None, end_date=None,
-                                          summarize_column_by=None)
+                    self.process_endpoint(
+                        endpoint, quickbooks_param, start_date=None, end_date=None, summarize_column_by=None
+                    )
                     self.refresh_token, self.access_token = (
                         quickbooks_param.refresh_token,
-                        quickbooks_param.access_token
+                        quickbooks_param.access_token,
                     )
 
             else:
@@ -184,8 +197,13 @@ class Component(ComponentBase):
                     self.incremental = True
                     summarize_column_by = row["segment_data_by"] or None
 
-                    quickbooks_param = QuickbooksClient(company_id=company_id, refresh_token=self.refresh_token,
-                                                        access_token=self.access_token, oauth=oauth, sandbox=sandbox)
+                    quickbooks_param = QuickbooksClient(
+                        company_id=company_id,
+                        refresh_token=self.refresh_token,
+                        access_token=self.access_token,
+                        oauth=oauth,
+                        sandbox=sandbox,
+                    )
 
                     if not sandbox:
                         self.process_oauth_tokens(quickbooks_param)
@@ -194,19 +212,17 @@ class Component(ComponentBase):
                     self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
                     self.refresh_token, self.access_token = (
                         quickbooks_param.refresh_token,
-                        quickbooks_param.access_token
+                        quickbooks_param.access_token,
                     )
 
                 # Also process endpoints from configuration
                 for endpoint in _endpoints:
-                    self.process_endpoint(endpoint,
-                                          quickbooks_param,
-                                          start_date=None,
-                                          end_date=None,
-                                          summarize_column_by=None)
+                    self.process_endpoint(
+                        endpoint, quickbooks_param, start_date=None, end_date=None, summarize_column_by=None
+                    )
                     self.refresh_token, self.access_token = (
                         quickbooks_param.refresh_token,
-                        quickbooks_param.access_token
+                        quickbooks_param.access_token,
                     )
 
     def process_oauth_tokens(self, client) -> None:
@@ -232,19 +248,24 @@ class Component(ComponentBase):
 
         new_state = {
             "component": {
-                "tokens":
-                    {"ts": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
-                     "#refresh_token": encrypted_refresh_token,
-                     "#access_token": encrypted_access_token}
-            }}
+                "tokens": {
+                    "ts": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                    "#refresh_token": encrypted_refresh_token,
+                    "#access_token": encrypted_access_token,
+                }
+            }
+        }
         try:
-            self.update_config_state(component_id=self.environment_variables.component_id,
-                                     configurationId=self.environment_variables.config_id,
-                                     state=new_state,
-                                     branch_id=self.environment_variables.branch_id)
+            self.update_config_state(
+                component_id=self.environment_variables.component_id,
+                configurationId=self.environment_variables.config_id,
+                state=new_state,
+                branch_id=self.environment_variables.branch_id,
+            )
         except requests.exceptions.RequestException:
-            logging.warning("Storage API (update config state)"
-                            "is unavailable. Skipping token save at the beginning of the run.")
+            logging.warning(
+                "Storage API (update config state)is unavailable. Skipping token save at the beginning of the run."
+            )
             return
 
     @backoff.on_exception(backoff.expo, requests.exceptions.RequestException, max_tries=5)
@@ -253,21 +274,18 @@ class Component(ComponentBase):
         params = {
             "componentId": self.environment_variables.component_id,
             "projectId": self.environment_variables.project_id,
-            "configId": self.environment_variables.config_id
+            "configId": self.environment_variables.config_id,
         }
         headers = {"Content-Type": "text/plain"}
 
-        response = requests.post(url,
-                                 data=token,
-                                 params=params,
-                                 headers=headers)
+        response = requests.post(url, data=token, params=params, headers=headers)
         response.raise_for_status()
         return response.text
 
     @backoff.on_exception(backoff.expo, requests.exceptions.RequestException, max_tries=5)
-    def update_config_state(self, component_id, configurationId, state, branch_id='default'):
+    def update_config_state(self, component_id, configurationId, state, branch_id="default"):
         if not branch_id:
-            branch_id = 'default'
+            branch_id = "default"
 
         url = (
             f"https://connection.{URL_SUFFIX}/v2/storage/branch/{branch_id}"
@@ -275,17 +293,19 @@ class Component(ComponentBase):
             f"{configurationId}/state"
         )
 
-        parameters = {'state': json.dumps(state)}
-        headers = {'Content-Type': 'application/x-www-form-urlencoded', 'X-StorageApi-Token': self._get_storage_token()}
-        response = requests.put(url,
-                                data=parameters,
-                                headers=headers)
+        parameters = {"state": json.dumps(state)}
+        headers = {"Content-Type": "application/x-www-form-urlencoded", "X-StorageApi-Token": self._get_storage_token()}
+        response = requests.put(url, data=parameters, headers=headers)
         response.raise_for_status()
 
     def process_endpoint(self, endpoint, quickbooks_param, start_date, end_date, summarize_column_by):
         if endpoint == "ProfitAndLossQuery":
-            self.process_pnl_report(quickbooks_param=quickbooks_param, start_date=start_date, end_date=end_date,
-                                    summarize_column_by=summarize_column_by)
+            self.process_pnl_report(
+                quickbooks_param=quickbooks_param,
+                start_date=start_date,
+                end_date=end_date,
+                summarize_column_by=summarize_column_by,
+            )
             return
 
         if "**" in endpoint:
@@ -295,8 +315,13 @@ class Component(ComponentBase):
             endpoint = endpoint
             report_api_bool = False
 
-        self.fetch(quickbooks_param=quickbooks_param, endpoint=endpoint, report_api_bool=report_api_bool,
-                   start_date=start_date, end_date=end_date)
+        self.fetch(
+            quickbooks_param=quickbooks_param,
+            endpoint=endpoint,
+            report_api_bool=report_api_bool,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
         logging.debug("Parsing API results...")
         input_data = quickbooks_param.data
@@ -304,13 +329,11 @@ class Component(ComponentBase):
         if len(input_data) == 0:
             pass
         else:
-            logging.debug(
-                "Report API Template Enable: {0}".format(report_api_bool))
+            logging.debug("Report API Template Enable: {0}".format(report_api_bool))
             if report_api_bool:
                 if endpoint == "CustomQuery":
                     # Not implemented
-                    ReportMapping(endpoint=endpoint, data=input_data,
-                                  query=start_date)
+                    ReportMapping(endpoint=endpoint, data=input_data, query=start_date)
                 else:
                     if endpoint in quickbooks_param.reports_required_accounting_type:
                         input_data_2 = quickbooks_param.data_2
@@ -322,7 +345,6 @@ class Component(ComponentBase):
                 Mapping(endpoint=endpoint, data=input_data)
 
     def get_tokens(self, oauth):
-
         try:
             refresh_token = oauth["data"]["refresh_token"]
             access_token = oauth["data"]["access_token"]
@@ -357,7 +379,7 @@ class Component(ComponentBase):
                 "obj_type": obj_type,
                 "obj_group": obj_group,
                 "start_date": start_date,
-                "end_date": end_date
+                "end_date": end_date,
             }
             if method == "cash":
                 results_cash.append(res_dict)
@@ -400,16 +422,19 @@ class Component(ComponentBase):
 
         valid_object_summaries = ["Class", "Department", "Total"]
         if summarize_column_by not in valid_object_summaries:
-            raise UserException(f"The component can process ProfitAndLossQuery report only for"
-                                f" {valid_object_summaries}.")
+            raise UserException(
+                f"The component can process ProfitAndLossQuery report only for {valid_object_summaries}."
+            )
 
         if summarize_column_by != "Total":
-            self.fetch(quickbooks_param=quickbooks_param,
-                       endpoint="CustomQuery",
-                       report_api_bool=True,
-                       start_date=start_date,
-                       end_date=end_date,
-                       query=f"select * from {summarize_column_by}")
+            self.fetch(
+                quickbooks_param=quickbooks_param,
+                endpoint="CustomQuery",
+                report_api_bool=True,
+                start_date=start_date,
+                end_date=end_date,
+                query=f"select * from {summarize_column_by}",
+            )
 
             query_result = quickbooks_param.data
 
@@ -419,8 +444,10 @@ class Component(ComponentBase):
             logging.debug(f"Found summary categories: {summary_names}")
 
             if not summary_names:
-                raise UserException(f"API returned no {summarize_column_by}. Please make sure you have relevant "
-                                    f"objects set up in your Quickbooks account.")
+                raise UserException(
+                    f"API returned no {summarize_column_by}. Please make sure you have relevant "
+                    f"objects set up in your Quickbooks account."
+                )
             else:
                 logging.debug(f"Summarize is: {summarize_column_by}")
                 if summarize_column_by:
@@ -441,21 +468,23 @@ class Component(ComponentBase):
             else:
                 logging.debug("Filtering for pnl report is not set.")
 
-            self.fetch(quickbooks_param=quickbooks_param,
-                       endpoint="ProfitAndLoss",
-                       report_api_bool=True,
-                       start_date=start_date,
-                       end_date=end_date,
-                       query="",
-                       params=params)
+            self.fetch(
+                quickbooks_param=quickbooks_param,
+                endpoint="ProfitAndLoss",
+                report_api_bool=True,
+                start_date=start_date,
+                end_date=end_date,
+                query="",
+                params=params,
+            )
 
-            summarize_by = quickbooks_param.data['Header'].get("SummarizeColumnsBy", False)
+            summarize_by = quickbooks_param.data["Header"].get("SummarizeColumnsBy", False)
 
             if not summarize_by:
                 # This part is currently not used since we always group by Class, Department or Total
 
-                report_accrual = quickbooks_param.data['Rows']['Row']
-                report_cash = quickbooks_param.data_2['Rows']['Row']
+                report_accrual = quickbooks_param.data["Rows"]["Row"]
+                report_cash = quickbooks_param.data_2["Rows"]["Row"]
 
                 for obj in report_cash:
                     process_object(obj, summary_name, method="cash")
@@ -466,23 +495,31 @@ class Component(ComponentBase):
                 report_accrual_data = quickbooks_param.data
                 report_cash_data = quickbooks_param.data_2
 
-                header = quickbooks_param.data['Header']
-                summarize_by = header['SummarizeColumnsBy']
-                currency = header['Currency']
+                header = quickbooks_param.data["Header"]
+                summarize_by = header["SummarizeColumnsBy"]
+                currency = header["Currency"]
 
-                results_cash.append(self.preprocess_dict(report_cash_data,
-                                                         summary_name,
-                                                         summarize_by=summarize_by,
-                                                         currency=currency,
-                                                         start_date=start_date,
-                                                         end_date=end_date))
+                results_cash.append(
+                    self.preprocess_dict(
+                        report_cash_data,
+                        summary_name,
+                        summarize_by=summarize_by,
+                        currency=currency,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                )
 
-                results_accrual.append(self.preprocess_dict(report_accrual_data,
-                                                            summary_name,
-                                                            summarize_by=summarize_by,
-                                                            currency=currency,
-                                                            start_date=start_date,
-                                                            end_date=end_date))
+                results_accrual.append(
+                    self.preprocess_dict(
+                        report_accrual_data,
+                        summary_name,
+                        summarize_by=summarize_by,
+                        currency=currency,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                )
 
         """
         # This is here in case we will ever need to do reports that are not summarized
@@ -499,11 +536,11 @@ class Component(ComponentBase):
     def preprocess_dict(obj, class_name, summarize_by, currency, start_date, end_date):
         results = []
 
-        rows = obj['Rows']['Row']
-        cols = obj['Columns']['Column']
+        rows = obj["Rows"]["Row"]
+        cols = obj["Columns"]["Column"]
         group_by = []
         for col in cols:
-            group_by.append(col['ColTitle'])
+            group_by.append(col["ColTitle"])
 
         def save_result(_class_name, name, value, obj_type, obj_group, category_name="", category_id=""):
             res_dict = {
@@ -517,7 +554,7 @@ class Component(ComponentBase):
                 "start_date": start_date,
                 "end_date": end_date,
                 "summarize_by": summarize_by,
-                "currency": currency
+                "currency": currency,
             }
             results.append(res_dict)
 
@@ -527,7 +564,7 @@ class Component(ComponentBase):
             category_id = col_data[0].get("id", "")
             for name, val in zip(group_by, col_data):
                 if name:
-                    save_result(class_name, name, val['value'], obj_type, obj_group, category_name, category_id)
+                    save_result(class_name, name, val["value"], obj_type, obj_group, category_name, category_id)
 
         def process_object(obj, class_name):
             obj_type = obj.get("type", "")
@@ -557,18 +594,28 @@ class Component(ComponentBase):
         return results
 
     def save_pnl_report_to_csv(self, table_name: str, results: list):
-
         logging.debug(f"Saving pnl_report results to {table_name}.")
 
         pk = ["class", "name", "obj_type", "category_id", "start_date", "end_date"]
-        columns = ["class", "name", "value", "obj_type", "obj_group", "category_name", "category_id",
-                   "start_date", "end_date", "summarize_by", "currency"]
+        columns = [
+            "class",
+            "name",
+            "value",
+            "obj_type",
+            "obj_group",
+            "category_name",
+            "category_id",
+            "start_date",
+            "end_date",
+            "summarize_by",
+            "currency",
+        ]
 
         table_def = self.create_out_table_definition(table_name, primary_key=pk, incremental=self.incremental)
 
         file_exists = os.path.isfile(table_def.full_path)
 
-        with open(table_def.full_path, 'a', newline='') as csvfile:
+        with open(table_def.full_path, "a", newline="") as csvfile:
             wr = csv.DictWriter(csvfile, fieldnames=columns)
             if not file_exists:
                 wr.writeheader()
@@ -587,7 +634,7 @@ class Component(ComponentBase):
                 start_date=start_date,
                 end_date=end_date,
                 query=query if query else "",
-                params=params
+                params=params,
             )
         except QuickBooksClientException as e:
             raise UserException(e) from e
@@ -598,7 +645,7 @@ class Component(ComponentBase):
         if not dt:
             return None
 
-        dt_format = '%Y-%m-%d'
+        dt_format = "%Y-%m-%d"
         today = datetime.date.today()
         if dt == "PrevMonthStart":
             result = today.replace(day=1) - relativedelta(months=1)
@@ -608,13 +655,14 @@ class Component(ComponentBase):
             try:
                 datetime.date.fromisoformat(dt)
             except ValueError:
-                raise UserException(f"Date {dt} is invalid. Valid types are: "
-                                    f"PrevMonthStart, PrevMonthEnd or YYYY-MM-DD")
+                raise UserException(
+                    f"Date {dt} is invalid. Valid types are: PrevMonthStart, PrevMonthEnd or YYYY-MM-DD"
+                )
             return dt
         return result.strftime(dt_format)
 
     def _get_storage_token(self) -> str:
-        token = self.configuration.parameters.get('#storage_token') or self.environment_variables.token
+        token = self.configuration.parameters.get("#storage_token") or self.environment_variables.token
         if not token:
             raise UserException("Cannot retrieve storage token from env variables and/or config.")
         return token
