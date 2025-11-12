@@ -35,8 +35,8 @@ REQUIRED_PARAMETERS = [KEY_COMPANY_ID, KEY_ENDPOINTS, KEY_GROUP_DESTINATION]
 # QuickBooks Parameters
 BASE_URL = "https://quickbooks.api.intuit.com"
 
-ALLOWED_BRANCHES = ["683762", "510379", "1237323", "184"]
-ALLOWED_PROJECTS = ["9525", "9382", "10405", "83"]
+# ALLOWED_BRANCHES = ["683762", "510379", "1237323", "184"]
+# ALLOWED_PROJECTS = ["9525", "9382", "10405", "83"]
 
 
 class Component(ComponentBase):
@@ -46,19 +46,19 @@ class Component(ComponentBase):
         self.refresh_token = None
         self.access_token = None
 
-        if self.environment_variables.branch_id not in ALLOWED_BRANCHES:
-            raise UserException(
-                f"This component uses Keboola API to store the statefile. "
-                f"Running is allowed only in branches {ALLOWED_BRANCHES}, "
-                f"detected branch: {self.environment_variables.branch_id}"
-            )
-
-        if self.environment_variables.project_id not in ALLOWED_PROJECTS:
-            raise UserException(
-                f"This component uses Keboola API to store the statefile. "
-                f"Running is allowed only in projects {ALLOWED_PROJECTS}, "
-                f"detected project_id: {self.environment_variables.project_id}"
-            )
+        # if self.environment_variables.branch_id not in ALLOWED_BRANCHES:
+        #     raise UserException(
+        #         f"This component uses Keboola API to store the statefile. "
+        #         f"Running is allowed only in branches {ALLOWED_BRANCHES}, "
+        #         f"detected branch: {self.environment_variables.branch_id}"
+        #     )
+        #
+        # if self.environment_variables.project_id not in ALLOWED_PROJECTS:
+        #     raise UserException(
+        #         f"This component uses Keboola API to store the statefile. "
+        #         f"Running is allowed only in projects {ALLOWED_PROJECTS}, "
+        #         f"detected project_id: {self.environment_variables.project_id}"
+        #     )
 
     def run(self):
         sandbox = self.configuration.parameters.get(KEY_SANDBOX, False)
