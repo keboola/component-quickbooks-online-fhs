@@ -44,7 +44,6 @@ class Component(ComponentBase):
         super().__init__()
         self.incremental = None
         self.refresh_token = None
-        self.access_token = None
 
         # if self.environment_variables.branch_id not in ALLOWED_BRANCHES:
         #     raise UserException(
@@ -66,7 +65,7 @@ class Component(ComponentBase):
         end_date = None
 
         oauth = self.configuration.oauth_credentials
-        self.refresh_token, self.access_token = self.get_tokens(oauth)
+        refresh_tokens = self.get_tokens(oauth)
 
         params_company_id = self.configuration.parameters.get(KEY_COMPANY_ID, None)
 
@@ -79,12 +78,12 @@ class Component(ComponentBase):
         if cfg_table:
             self.validate_inputs(cfg_table, params_company_id)
             try:
-                self.input_table_run(cfg_table, oauth, sandbox, params_company_id)
+                self.input_table_run(cfg_table, oauth, sandbox, params_company_id, refresh_tokens)
             except QuickBooksClientException as e:
                 raise UserException(f"Component failed during run: {e}") from e
         else:
             try:
-                self.no_input_table_run(start_date, end_date, self.refresh_token, self.access_token, oauth, sandbox)
+                self.no_input_table_run(start_date, end_date, oauth, sandbox, refresh_tokens)
             except QuickBooksClientException as e:
                 raise UserException(f"Component failed during run: {e}") from e
 
@@ -93,7 +92,6 @@ class Component(ComponentBase):
                 "tokens": {
                     "ts": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
                     "#refresh_token": self.refresh_token,
-                    "#access_token": self.access_token,
                 }
             }
         )
@@ -116,7 +114,7 @@ class Component(ComponentBase):
                         f"with company_id provided in input table: {pk}."
                     )
 
-    def no_input_table_run(self, start_date, end_date, refresh_token, access_token, oauth, sandbox):
+    def no_input_table_run(self, start_date, end_date, oauth, sandbox, refresh_tokens):
         logging.info("No input table detected. The component will run with parameters set in config.")
         self.validate_configuration_parameters(REQUIRED_PARAMETERS)
         params = self.configuration.parameters
@@ -151,7 +149,7 @@ class Component(ComponentBase):
         summarize_column_by = params.get(KEY_SUMMARIZE_COLUMN_BY) if params.get(KEY_SUMMARIZE_COLUMN_BY) else None
 
         quickbooks_param = QuickbooksClient(
-            company_id=company_id, refresh_token=refresh_token, access_token=access_token, oauth=oauth, sandbox=sandbox
+            company_id=company_id, refresh_tokens=refresh_tokens, oauth=oauth, sandbox=sandbox
         )
         if not sandbox:
             self.process_oauth_tokens(quickbooks_param)
@@ -160,9 +158,10 @@ class Component(ComponentBase):
         for endpoint in endpoints:
             self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
 
-        self.refresh_token, self.access_token = quickbooks_param.refresh_token, quickbooks_param.access_token
+        # Save working token from client
+        self.refresh_token = quickbooks_param.refresh_token
 
-    def input_table_run(self, cfg_table, oauth, sandbox, params_company_id: str):
+    def input_table_run(self, cfg_table, oauth, sandbox, params_company_id: str, refresh_tokens):
         _endpoints = self.configuration.parameters.get("endpoints", [])
         with open(cfg_table.full_path, "r") as csvfile:
             reader = csv.DictReader(csvfile)
@@ -171,8 +170,7 @@ class Component(ComponentBase):
                 logging.info("No rows in input table detected, the component will process selected endpoints only.")
                 quickbooks_param = QuickbooksClient(
                     company_id=params_company_id,
-                    refresh_token=self.refresh_token,
-                    access_token=self.access_token,
+                    refresh_tokens=refresh_tokens,
                     oauth=oauth,
                     sandbox=sandbox,
                 )
@@ -182,10 +180,7 @@ class Component(ComponentBase):
                     self.process_endpoint(
                         endpoint, quickbooks_param, start_date=None, end_date=None, summarize_column_by=None
                     )
-                    self.refresh_token, self.access_token = (
-                        quickbooks_param.refresh_token,
-                        quickbooks_param.access_token,
-                    )
+                self.refresh_token = quickbooks_param.refresh_token
 
             else:
                 for row in rows:
@@ -199,8 +194,7 @@ class Component(ComponentBase):
 
                     quickbooks_param = QuickbooksClient(
                         company_id=company_id,
-                        refresh_token=self.refresh_token,
-                        access_token=self.access_token,
+                        refresh_tokens=refresh_tokens,
                         oauth=oauth,
                         sandbox=sandbox,
                     )
@@ -210,38 +204,30 @@ class Component(ComponentBase):
 
                     # Process endpoints defined in the input table
                     self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
-                    self.refresh_token, self.access_token = (
-                        quickbooks_param.refresh_token,
-                        quickbooks_param.access_token,
-                    )
+                    self.refresh_token = quickbooks_param.refresh_token
 
                 # Also process endpoints from configuration
                 for endpoint in _endpoints:
                     self.process_endpoint(
                         endpoint, quickbooks_param, start_date=None, end_date=None, summarize_column_by=None
                     )
-                    self.refresh_token, self.access_token = (
-                        quickbooks_param.refresh_token,
-                        quickbooks_param.access_token,
-                    )
+                self.refresh_token = quickbooks_param.refresh_token
 
     def process_oauth_tokens(self, client) -> None:
         """Uses Quickbooks client to get new tokens and saves them using API if they have changed since the last run."""
-        new_refresh_token, new_access_token = client.get_new_refresh_token()
+        new_refresh_token = client.get_new_refresh_token()
         if self.refresh_token != new_refresh_token:
-            self.save_new_oauth_tokens(new_refresh_token, new_access_token)
+            self.save_new_oauth_tokens(new_refresh_token)
 
-            # We also save new tokens to class vars, so we can save them unencrypted if case statefile update fails
-            # in update_config_state() method.
-            self.refresh_token = new_refresh_token
-            self.access_token = new_access_token
+        # We also save new token to class var, so we can save it unencrypted if case statefile update fails
+        # in update_config_state() method.
+        self.refresh_token = new_refresh_token
 
-    def save_new_oauth_tokens(self, refresh_token: str, access_token: str) -> None:
-        logging.debug("Saving new tokens to state using Keboola API.")
+    def save_new_oauth_tokens(self, refresh_token: str) -> None:
+        logging.debug("Saving new token to state using Keboola API.")
 
         try:
             encrypted_refresh_token = self.encrypt(refresh_token)
-            encrypted_access_token = self.encrypt(access_token)
         except requests.exceptions.RequestException:
             logging.warning("Encrypt API is unavailable. Skipping token save at the beginning of the run.")
             return
@@ -251,7 +237,6 @@ class Component(ComponentBase):
                 "tokens": {
                     "ts": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
                     "#refresh_token": encrypted_refresh_token,
-                    "#access_token": encrypted_access_token,
                 }
             }
         }
@@ -345,27 +330,25 @@ class Component(ComponentBase):
                 Mapping(endpoint=endpoint, data=input_data)
 
     def get_tokens(self, oauth):
+        """Returns list of refresh tokens: [statefile token, oauth token]"""
         try:
-            refresh_token = oauth["data"]["refresh_token"]
-            access_token = oauth["data"]["access_token"]
-        except TypeError:
+            oauth_refresh = oauth["data"]["refresh_token"]
+        except (TypeError, KeyError):
             raise UserException("OAuth data is not available.")
 
+        refresh_tokens = []
+
+        # Add statefile token first if available
         statefile = self.get_state_file()
-        if statefile.get("tokens", {}).get("ts"):
-            ts_oauth = datetime.datetime.fromisoformat(oauth["created"])
-            ts_statefile = datetime.datetime.fromisoformat(statefile["tokens"]["ts"])
+        state_refresh = statefile.get("tokens", {}).get("#refresh_token")
 
-            if ts_statefile > ts_oauth:
-                refresh_token = statefile["tokens"].get("#refresh_token")
-                access_token = statefile["tokens"].get("#access_token")
-                logging.debug("Loaded tokens from statefile.")
-            else:
-                logging.debug("Using tokens from oAuth.")
-        else:
-            logging.warning("No timestamp found in statefile. Using oAuth tokens.")
+        if state_refresh:
+            refresh_tokens.append(state_refresh)
 
-        return refresh_token, access_token
+        # Always add oauth token as fallback
+        refresh_tokens.append(oauth_refresh)
+
+        return refresh_tokens
 
     def process_pnl_report(self, quickbooks_param, start_date, end_date, summarize_column_by):
         results_cash = []

@@ -4,7 +4,6 @@ import requests
 import dateparser
 import urllib.parse as url_parse
 from requests.auth import HTTPBasicAuth
-from typing import Tuple
 from keboola.component.base import ComponentBase  # noqa
 import backoff
 from requests.exceptions import HTTPError
@@ -22,7 +21,7 @@ class QuickbooksClient:
     QuickBooks Requests Handler
     """
 
-    def __init__(self, company_id, access_token, refresh_token, oauth, sandbox):
+    def __init__(self, company_id, refresh_tokens, oauth, sandbox):
         self.count = None
         self.end_date = None
         self.start_date = None
@@ -40,9 +39,13 @@ class QuickbooksClient:
         else:
             self.base_url = "https://sandbox-quickbooks.api.intuit.com/v3/company"
 
-        # Parameters for request
-        self.access_token = access_token
-        self.refresh_token = refresh_token
+        # Store list of refresh tokens
+        self.refresh_tokens = refresh_tokens
+        self.current_token_index = 0
+
+        # Initialize with first refresh token
+        self.refresh_token = refresh_tokens[0]
+        self.access_token = None
         self.access_token_refreshed = False
         self.company_id = company_id
         self.reports_required_accounting_type = [
@@ -53,13 +56,13 @@ class QuickbooksClient:
             "TrialBalance",
         ]
 
-    def get_new_refresh_token(self) -> Tuple[str, str]:
+    def get_new_refresh_token(self) -> str:
         try:
             self.refresh_access_token()
         except Exception as e:
             raise QuickBooksClientException(e) from e
 
-        return self.refresh_token, self.access_token
+        return self.refresh_token
 
     def fetch(self, endpoint, report_api_bool, start_date, end_date, query="", params=None):
         """
@@ -102,26 +105,46 @@ class QuickbooksClient:
     def refresh_access_token(self):
         """
         Get a new access token with refresh token.
-        Also saves the new token in statefile.
+        Tries each refresh token until one succeeds.
         """
-        logging.info("Refreshing Access Token")
+        last_error = None
 
-        url = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
-        param = {"grant_type": "refresh_token", "refresh_token": self.refresh_token}
+        # Try all refresh tokens starting from current
+        for index in range(self.current_token_index, len(self.refresh_tokens)):
+            self.refresh_token = self.refresh_tokens[index]
+            logging.info(f"Refreshing Access Token (token {index + 1}/{len(self.refresh_tokens)})")
 
-        r = requests.post(url, auth=HTTPBasicAuth(self.app_key, self.app_secret), data=param)
-        r.raise_for_status()
+            try:
+                url = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
+                param = {"grant_type": "refresh_token", "refresh_token": self.refresh_token}
 
-        results = r.json()
+                r = requests.post(url, auth=HTTPBasicAuth(self.app_key, self.app_secret), data=param)
+                r.raise_for_status()
 
-        if "error" in results:
-            raise QuickBooksClientException(
-                f"Failed to refresh access token, please re-authorize credentials: {r.text}"
-            )
+                results = r.json()
 
-        self.access_token = results["access_token"]
-        self.refresh_token = results["refresh_token"]
-        self.access_token_refreshed = True
+                if "error" in results:
+                    raise QuickBooksClientException(
+                        f"Failed to refresh access token: {results.get('error_description', results['error'])}"
+                    )
+
+                self.access_token = results["access_token"]
+                self.refresh_token = results["refresh_token"]
+                self.access_token_refreshed = True
+                self.current_token_index = index
+                logging.info(f"Successfully refreshed token using token {index + 1}")
+                return
+
+            except Exception as e:
+                last_error = e
+                logging.warning(f"Refresh token {index + 1} failed: {e}")
+                continue
+
+        # All tokens failed
+        raise QuickBooksClientException(
+            f"Failed to refresh access token with all {len(self.refresh_tokens)} refresh tokens. "
+            f"Last error: {last_error}. Please re-authorize credentials."
+        )
 
     def get_count(self):
         """
