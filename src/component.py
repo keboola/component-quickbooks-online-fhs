@@ -168,19 +168,19 @@ class Component(ComponentBase):
             rows = list(reader)  # not memory efficient, but we are working with small input table
             if len(rows) == 0:
                 logging.info("No rows in input table detected, the component will process selected endpoints only.")
-                quickbooks_param = QuickbooksClient(
+                quickbooks_client = QuickbooksClient(
                     company_id=params_company_id,
                     refresh_tokens=refresh_tokens,
                     oauth=oauth,
                     sandbox=sandbox,
                 )
                 if not sandbox:
-                    self.process_oauth_tokens(quickbooks_param)
+                    self.process_oauth_tokens(quickbooks_client)
                 for endpoint in _endpoints:
                     self.process_endpoint(
-                        endpoint, quickbooks_param, start_date=None, end_date=None, summarize_column_by=None
+                        endpoint, quickbooks_client, start_date=None, end_date=None, summarize_column_by=None
                     )
-                self.refresh_token = quickbooks_param.refresh_token
+                self.refresh_token = quickbooks_client.refresh_token
 
             else:
                 for row in rows:
@@ -192,7 +192,7 @@ class Component(ComponentBase):
                     self.incremental = True
                     summarize_column_by = row["segment_data_by"] or None
 
-                    quickbooks_param = QuickbooksClient(
+                    quickbooks_client = QuickbooksClient(
                         company_id=company_id,
                         refresh_tokens=refresh_tokens,
                         oauth=oauth,
@@ -200,18 +200,18 @@ class Component(ComponentBase):
                     )
 
                     if not sandbox:
-                        self.process_oauth_tokens(quickbooks_param)
+                        self.process_oauth_tokens(quickbooks_client)
 
                     # Process endpoints defined in the input table
-                    self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
-                    self.refresh_token = quickbooks_param.refresh_token
+                    self.process_endpoint(endpoint, quickbooks_client, start_date, end_date, summarize_column_by)
+                    self.refresh_token = quickbooks_client.refresh_token
 
                 # Also process endpoints from configuration
                 for endpoint in _endpoints:
                     self.process_endpoint(
-                        endpoint, quickbooks_param, start_date=None, end_date=None, summarize_column_by=None
+                        endpoint, quickbooks_client, start_date=None, end_date=None, summarize_column_by=None
                     )
-                self.refresh_token = quickbooks_param.refresh_token
+                self.refresh_token = quickbooks_client.refresh_token
 
     def process_oauth_tokens(self, client) -> None:
         """Uses Quickbooks client to get new tokens and saves them using API if they have changed since the last run."""
@@ -249,7 +249,7 @@ class Component(ComponentBase):
             )
         except requests.exceptions.RequestException:
             logging.warning(
-                "Storage API (update config state)is unavailable. Skipping token save at the beginning of the run."
+                "Storage API (update config state) is unavailable. Skipping token save at the beginning of the run."
             )
             return
 
