@@ -201,6 +201,7 @@ class Component(ComponentBase):
 
                     if not sandbox:
                         self.process_oauth_tokens(quickbooks_client)
+                        refresh_tokens[0] = quickbooks_client.refresh_token
 
                     # Process endpoints defined in the input table
                     self.process_endpoint(endpoint, quickbooks_client, start_date, end_date, summarize_column_by)
@@ -215,13 +216,13 @@ class Component(ComponentBase):
 
     def process_oauth_tokens(self, client) -> None:
         """Uses Quickbooks client to get new tokens and saves them using API if they have changed since the last run."""
-        new_refresh_token = client.get_new_refresh_token()
-        if self.refresh_token != new_refresh_token:
-            self.save_new_oauth_tokens(new_refresh_token)
+        client.get_new_tokens()
+        if self.refresh_token != client.refresh_token:
+            self.save_new_oauth_tokens(client.refresh_token)
 
         # We also save new token to class var, so we can save it unencrypted if case statefile update fails
         # in update_config_state() method.
-        self.refresh_token = new_refresh_token
+        self.refresh_token = client.refresh_token
 
     def save_new_oauth_tokens(self, refresh_token: str) -> None:
         logging.debug("Saving new token to state using Keboola API.")

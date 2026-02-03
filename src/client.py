@@ -56,14 +56,6 @@ class QuickbooksClient:
             "TrialBalance",
         ]
 
-    def get_new_refresh_token(self) -> str:
-        try:
-            self.refresh_access_token()
-        except Exception as e:
-            raise QuickBooksClientException(e) from e
-
-        return self.refresh_token
-
     def fetch(self, endpoint, report_api_bool, start_date, end_date, query="", params=None):
         """
         Fetching results for the specified endpoint
@@ -102,7 +94,7 @@ class QuickbooksClient:
                 self.data_request()
 
     @backoff.on_exception(backoff.expo, HTTPError, max_tries=3)
-    def refresh_access_token(self):
+    def get_new_tokens(self):
         """
         Get a new access token with refresh token.
         Tries each refresh token until one succeeds.
@@ -198,7 +190,7 @@ class QuickbooksClient:
 
             if "fault" in results or "Fault" in results:
                 if not self.access_token_refreshed:
-                    self.refresh_access_token()
+                    self.get_new_tokens()
                 else:
                     if data:
                         error = data.json().get("fault").get("error")[0]
