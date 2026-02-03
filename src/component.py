@@ -107,12 +107,9 @@ class Component(ComponentBase):
             reader = csv.DictReader(csvfile)
             rows = list(reader)
             for row in rows:
-                pk = row["PK"]
-                if pk != params_company_id:
-                    raise UserException(
-                        f"company_id from params: {params_company_id} does not match "
-                        f"with company_id provided in input table: {pk}."
-                    )
+                company_id = row["PK"]
+                # Validate each company_id format in the input table
+                self.validate_company_id(company_id)
 
     def no_input_table_run(self, start_date, end_date, oauth, sandbox, refresh_tokens):
         logging.info("No input table detected. The component will run with parameters set in config.")
@@ -148,15 +145,13 @@ class Component(ComponentBase):
 
         summarize_column_by = params.get(KEY_SUMMARIZE_COLUMN_BY) if params.get(KEY_SUMMARIZE_COLUMN_BY) else None
 
-        quickbooks_param = QuickbooksClient(
-            company_id=company_id, refresh_tokens=refresh_tokens, oauth=oauth, sandbox=sandbox
-        )
+        quickbooks_param = QuickbooksClient(refresh_tokens=refresh_tokens, oauth=oauth, sandbox=sandbox)
         if not sandbox:
             self.process_oauth_tokens(quickbooks_param)
 
         # Fetching reports for each configured endpoint
         for endpoint in endpoints:
-            self.process_endpoint(endpoint, quickbooks_param, start_date, end_date, summarize_column_by)
+            self.process_endpoint(endpoint, quickbooks_param, company_id, start_date, end_date, summarize_column_by)
 
         # Save working token from client
         self.refresh_token = quickbooks_param.refresh_token
@@ -166,23 +161,31 @@ class Component(ComponentBase):
         with open(cfg_table.full_path, "r") as csvfile:
             reader = csv.DictReader(csvfile)
             rows = list(reader)  # not memory efficient, but we are working with small input table
+
+            # Create client once for all rows
+            quickbooks_client = QuickbooksClient(
+                refresh_tokens=refresh_tokens,
+                oauth=oauth,
+                sandbox=sandbox,
+            )
+
+            # Refresh token once at the beginning
+            if not sandbox:
+                self.process_oauth_tokens(quickbooks_client)
+
             if len(rows) == 0:
                 logging.info("No rows in input table detected, the component will process selected endpoints only.")
-                quickbooks_client = QuickbooksClient(
-                    company_id=params_company_id,
-                    refresh_tokens=refresh_tokens,
-                    oauth=oauth,
-                    sandbox=sandbox,
-                )
-                if not sandbox:
-                    self.process_oauth_tokens(quickbooks_client)
                 for endpoint in _endpoints:
                     self.process_endpoint(
-                        endpoint, quickbooks_client, start_date=None, end_date=None, summarize_column_by=None
+                        endpoint,
+                        quickbooks_client,
+                        params_company_id,
+                        start_date=None,
+                        end_date=None,
+                        summarize_column_by=None,
                     )
-                self.refresh_token = quickbooks_client.refresh_token
-
             else:
+                # Process all rows with the same client
                 for row in rows:
                     logging.debug(f"Processing row: {row}")
                     company_id = row["PK"]
@@ -192,27 +195,24 @@ class Component(ComponentBase):
                     self.incremental = True
                     summarize_column_by = row["segment_data_by"] or None
 
-                    quickbooks_client = QuickbooksClient(
-                        company_id=company_id,
-                        refresh_tokens=refresh_tokens,
-                        oauth=oauth,
-                        sandbox=sandbox,
-                    )
-
-                    if not sandbox:
-                        self.process_oauth_tokens(quickbooks_client)
-                        refresh_tokens[0] = quickbooks_client.refresh_token
-
                     # Process endpoints defined in the input table
-                    self.process_endpoint(endpoint, quickbooks_client, start_date, end_date, summarize_column_by)
-                    self.refresh_token = quickbooks_client.refresh_token
+                    self.process_endpoint(
+                        endpoint, quickbooks_client, company_id, start_date, end_date, summarize_column_by
+                    )
 
                 # Also process endpoints from configuration
                 for endpoint in _endpoints:
                     self.process_endpoint(
-                        endpoint, quickbooks_client, start_date=None, end_date=None, summarize_column_by=None
+                        endpoint,
+                        quickbooks_client,
+                        params_company_id,
+                        start_date=None,
+                        end_date=None,
+                        summarize_column_by=None,
                     )
-                self.refresh_token = quickbooks_client.refresh_token
+
+            # Save the final refresh token
+            self.refresh_token = quickbooks_client.refresh_token
 
     def process_oauth_tokens(self, client) -> None:
         """Uses Quickbooks client to get new tokens and saves them using API if they have changed since the last run."""
@@ -284,10 +284,11 @@ class Component(ComponentBase):
         response = requests.put(url, data=parameters, headers=headers)
         response.raise_for_status()
 
-    def process_endpoint(self, endpoint, quickbooks_param, start_date, end_date, summarize_column_by):
+    def process_endpoint(self, endpoint, quickbooks_param, company_id, start_date, end_date, summarize_column_by):
         if endpoint == "ProfitAndLossQuery":
             self.process_pnl_report(
                 quickbooks_param=quickbooks_param,
+                company_id=company_id,
                 start_date=start_date,
                 end_date=end_date,
                 summarize_column_by=summarize_column_by,
@@ -303,6 +304,7 @@ class Component(ComponentBase):
 
         self.fetch(
             quickbooks_param=quickbooks_param,
+            company_id=company_id,
             endpoint=endpoint,
             report_api_bool=report_api_bool,
             start_date=start_date,
@@ -351,7 +353,7 @@ class Component(ComponentBase):
 
         return refresh_tokens
 
-    def process_pnl_report(self, quickbooks_param, start_date, end_date, summarize_column_by):
+    def process_pnl_report(self, quickbooks_param, company_id, start_date, end_date, summarize_column_by):
         results_cash = []
         results_accrual = []
 
@@ -413,6 +415,7 @@ class Component(ComponentBase):
         if summarize_column_by != "Total":
             self.fetch(
                 quickbooks_param=quickbooks_param,
+                company_id=company_id,
                 endpoint="CustomQuery",
                 report_api_bool=True,
                 start_date=start_date,
@@ -454,6 +457,7 @@ class Component(ComponentBase):
 
             self.fetch(
                 quickbooks_param=quickbooks_param,
+                company_id=company_id,
                 endpoint="ProfitAndLoss",
                 report_api_bool=True,
                 start_date=start_date,
@@ -609,10 +613,13 @@ class Component(ComponentBase):
         self.write_manifest(table_def)
 
     @staticmethod
-    def fetch(quickbooks_param, endpoint, report_api_bool, start_date=None, end_date=None, query="", params=None):
+    def fetch(
+        quickbooks_param, company_id, endpoint, report_api_bool, start_date=None, end_date=None, query="", params=None
+    ):
         logging.debug(f"Fetching endpoint {endpoint} with date rage: {start_date} - {end_date}")
         try:
             quickbooks_param.fetch(
+                company_id=company_id,
                 endpoint=endpoint,
                 report_api_bool=report_api_bool,
                 start_date=start_date,

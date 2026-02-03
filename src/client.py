@@ -21,7 +21,7 @@ class QuickbooksClient:
     QuickBooks Requests Handler
     """
 
-    def __init__(self, company_id, refresh_tokens, oauth, sandbox):
+    def __init__(self, refresh_tokens, oauth, sandbox):
         self.count = None
         self.end_date = None
         self.start_date = None
@@ -47,7 +47,6 @@ class QuickbooksClient:
         self.refresh_token = refresh_tokens[0]
         self.access_token = None
         self.access_token_refreshed = False
-        self.company_id = company_id
         self.reports_required_accounting_type = [
             "ProfitAndLoss",
             "ProfitAndLossDetail",
@@ -56,7 +55,7 @@ class QuickbooksClient:
             "TrialBalance",
         ]
 
-    def fetch(self, endpoint, report_api_bool, start_date, end_date, query="", params=None):
+    def fetch(self, company_id, endpoint, report_api_bool, start_date, end_date, query="", params=None):
         """
         Fetching results for the specified endpoint
         """
@@ -80,18 +79,18 @@ class QuickbooksClient:
                 if query == "":
                     raise QuickBooksClientException("Please enter query for CustomQuery. Exit...")
                 logging.debug("Input Custom Query: {0}".format(self.start_date))
-                self.custom_request(input_query=query)
+                self.custom_request(company_id, input_query=query)
             else:
                 if not (self.start_date and self.end_date):
                     raise QuickBooksClientException(f"Start date and End date are required for {endpoint} reports.")
-                self.report_request(endpoint, start_date, end_date, params)
+                self.report_request(company_id, endpoint, start_date, end_date, params)
         else:
-            self.count = self.get_count()  # total count of records for pagination
+            self.count = self.get_count(company_id)  # total count of records for pagination
             if self.count == 0:
                 logging.info("There are no returns for {0}".format(self.endpoint))
                 self.data = []
             else:
-                self.data_request()
+                self.data_request(company_id)
 
     @backoff.on_exception(backoff.expo, HTTPError, max_tries=3)
     def get_new_tokens(self):
@@ -138,7 +137,7 @@ class QuickbooksClient:
             f"Last error: {last_error}. Please re-authorize credentials."
         )
 
-    def get_count(self):
+    def get_count(self, company_id):
         """
         Fetch the number of records for the specified endpoint
         """
@@ -147,7 +146,7 @@ class QuickbooksClient:
         endpoint = self.endpoint
         url = "select count(*) from {0}".format(endpoint)
         encoded_url = self.url_encode(url)
-        count_url = "{0}/{1}/query?query={2}".format(self.base_url, self.company_id, encoded_url)
+        count_url = "{0}/{1}/query?query={2}".format(self.base_url, company_id, encoded_url)
 
         # Request the number of counts
         data = self._request(count_url)
@@ -214,7 +213,7 @@ class QuickbooksClient:
             raise QuickBooksClientException("Unable to fetch results.")
         return results
 
-    def data_request(self):
+    def data_request(self, company_id):
         """
         Handles Request Parameters and Pagination
         """
@@ -236,7 +235,7 @@ class QuickbooksClient:
 
             logging.debug("Request Query: {0}".format(query))
             encoded_query = self.url_encode(query)
-            url = "{0}/{1}/query?query={2}".format(self.base_url, self.company_id, encoded_query)
+            url = "{0}/{1}/query?query={2}".format(self.base_url, company_id, encoded_query)
 
             # Requests and concatenating results into class's data variable
             results = self._request(url)
@@ -262,7 +261,7 @@ class QuickbooksClient:
 
         logging.debug("Number of Requests: {0}".format(num_of_run))
 
-    def custom_request(self, input_query):
+    def custom_request(self, company_id, input_query):
         """
         Handles Request Parameters and Pagination
         """
@@ -272,7 +271,7 @@ class QuickbooksClient:
 
         logging.debug("Request Query: {0}".format(query))
         encoded_query = self.url_encode(query)
-        url = "{0}/{1}/query?query={2}".format(self.base_url, self.company_id, encoded_query)
+        url = "{0}/{1}/query?query={2}".format(self.base_url, company_id, encoded_query)
 
         # Requests and concatenating results into class's data variable
         results = self._request(url)
@@ -286,7 +285,7 @@ class QuickbooksClient:
         # Concatenate with exist extracted data
         self.data = data
 
-    def report_request(self, endpoint, start_date, end_date, params=None):
+    def report_request(self, company_id, endpoint, start_date, end_date, params=None):
         """
         API request for Report Endpoint
         """
@@ -324,7 +323,7 @@ class QuickbooksClient:
                     "subt_nat_amount,rbal_nat_amount,debt_amt,credit_amt"
                 )
 
-        url = "{0}/{1}/reports/{2}{3}".format(self.base_url, self.company_id, endpoint, date_param)
+        url = "{0}/{1}/reports/{2}{3}".format(self.base_url, company_id, endpoint, date_param)
         if endpoint in self.reports_required_accounting_type:
             accrual_url = url + "&accounting_method=Accrual"
             cash_url = url + "&accounting_method=Cash"
