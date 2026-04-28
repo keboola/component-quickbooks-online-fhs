@@ -175,6 +175,7 @@ class QuickbooksClient:
 
         results = None
         request_success = False
+        self.access_token_refreshed = False  # to refresh token when expired during the component run
         while not request_success:
             headers = {"Authorization": "Bearer " + self.access_token, "Accept": "application/json"}
             logging.debug(f"Requesting: {url} with params: {params}")
