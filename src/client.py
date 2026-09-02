@@ -121,6 +121,7 @@ class QuickbooksClient:
 
                 self.access_token = results["access_token"]
                 self.refresh_token = results["refresh_token"]
+                self.refresh_tokens[index] = self.refresh_token
                 self.access_token_refreshed = True
                 self.current_token_index = index
                 logging.info(f"Successfully refreshed token using token {index + 1}")
@@ -189,10 +190,15 @@ class QuickbooksClient:
                 raise QuickBooksClientException(f"Cannot decode response: {data.text}") from e
 
             if "fault" in results or "Fault" in results:
+                fault_message = self._format_fault(url, data.status_code, results)
                 if not self.access_token_refreshed:
-                    self.get_new_tokens()
+                    logging.warning(f"{fault_message} Retrying with a refreshed access token.")
+                    try:
+                        self.get_new_tokens()
+                    except QuickBooksClientException as e:
+                        raise QuickBooksClientException(f"{fault_message} Token refresh also failed: {e}") from e
                 else:
-                    raise QuickBooksClientException(self._format_fault(url, data.status_code, results))
+                    raise QuickBooksClientException(fault_message)
             else:
                 request_success = True
 
