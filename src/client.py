@@ -121,6 +121,7 @@ class QuickbooksClient:
 
                 self.access_token = results["access_token"]
                 self.refresh_token = results["refresh_token"]
+                self.refresh_tokens[index] = self.refresh_token
                 self.access_token_refreshed = True
                 self.current_token_index = index
                 logging.info(f"Successfully refreshed token using token {index + 1}")
@@ -189,30 +190,49 @@ class QuickbooksClient:
                 raise QuickBooksClientException(f"Cannot decode response: {data.text}") from e
 
             if "fault" in results or "Fault" in results:
+                fault_message = self._format_fault(url, data.status_code, results)
                 if not self.access_token_refreshed:
-                    self.get_new_tokens()
+                    logging.warning(f"{fault_message} Retrying with a refreshed access token.")
+                    try:
+                        self.get_new_tokens()
+                    except QuickBooksClientException as e:
+                        raise QuickBooksClientException(f"{fault_message} Token refresh also failed: {e}") from e
                 else:
-                    if data:
-                        error = data.json().get("fault").get("error")[0]
-                        if error:
-                            if error.get("message"):
-                                raise QuickBooksClientException(
-                                    f"Authorization failed. Please check Company ID and/or "
-                                    f"reauthorize the application: {error.get('message')}"
-                                )
-                            else:
-                                raise QuickBooksClientException(error)
-                        raise QuickBooksClientException(data.text)
-                    else:
-                        raise QuickBooksClientException(
-                            f"Client cannot fetch data from url {url}, please check defined endpoints and company_id."
-                        )
+                    raise QuickBooksClientException(fault_message)
             else:
                 request_success = True
 
         if not results:
             raise QuickBooksClientException("Unable to fetch results.")
         return results
+
+    @staticmethod
+    def _format_fault(url: str, status_code: int, results: dict) -> str:
+        fault = results.get("fault") or results.get("Fault") or {}
+        fault_type = fault.get("type") or fault.get("Type")
+        errors = fault.get("error") or fault.get("Error") or []
+
+        details = []
+        for error in errors:
+            if not isinstance(error, dict):
+                details.append(str(error))
+                continue
+            parts = [
+                error.get("message") or error.get("Message"),
+                error.get("detail") or error.get("Detail"),
+            ]
+            code = error.get("code") or error.get("Code")
+            if code:
+                parts.append(f"(code {code})")
+            details.append(" ".join(str(p) for p in parts if p))
+
+        message = f"QuickBooks API request to {url} failed with HTTP {status_code}"
+        if fault_type:
+            message += f", fault type {fault_type}"
+        message += ": " + ("; ".join(details) if details else json.dumps(fault))
+        if fault_type == "AUTHENTICATION" or status_code in (401, 403):
+            message += ". Please check that company_id matches the authorized QuickBooks company and reauthorize."
+        return message
 
     def data_request(self, company_id):
         """
